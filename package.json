@@ -1,0 +1,22 @@
+{
+  "name": "rumblr",
+  "version": "0.1.0",
+  "description": "Minimal scrolling mirror of an RSS feed",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "scrape": "node scripts/scrape.mjs",
+    "build": "eleventy",
+    "serve": "eleventy --serve",
+    "dev": "npm run scrape && npm run serve"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@11ty/eleventy": "^3.0.0",
+    "cheerio": "^1.0.0",
+    "rss-parser": "^3.13.0",
+    "sharp": "^0.35.0"
+  }
+}

@@ -1,0 +1,30 @@
+---
+layout: layout.njk
+---
+{% if posts.length == 0 %}
+  <p class="empty">Nothing here yet.</p>
+{% endif %}
+{% for post in posts %}
+  <article class="post" id="p{{ post.id }}">
+    {% for img in post.images %}
+      <div class="media">
+        <img src="{{ img.src | url }}"
+             {% if img.width %}width="{{ img.width }}"{% endif %}
+             {% if img.height %}height="{{ img.height }}"{% endif %}
+             alt="{{ img.alt }}" loading="lazy" decoding="async">
+      </div>
+    {% endfor %}
+    {% for vid in post.videos %}
+      <div class="media">
+        <video src="{{ vid.src | url }}" controls playsinline preload="none"
+               {% if vid.poster %}poster="{{ vid.poster | url }}"{% endif %}></video>
+      </div>
+    {% endfor %}
+    {% if post.caption %}
+      <div class="caption">{{ post.caption }}</div>
+    {% endif %}
+    <time datetime="{{ post.publishedAt | isoDate }}">
+      <a href="{{ post.permalink }}">{{ post.publishedAt | displayDate }}</a>
+    </time>
+  </article>
+{% endfor %}
