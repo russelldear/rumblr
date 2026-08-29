@@ -59,6 +59,10 @@
     text-align: center;
   }
   .empty { padding: 60px 0; text-align: center; opacity: 0.5; }
+  .more { padding: 28px 0; text-align: center; font-size: 0.85rem; }
+  .more a { color: inherit; opacity: 0.6; }
+  .more.loading a { visibility: hidden; }
+  .more.loading::after { content: "…"; opacity: 0.5; }
 </style>
 </head>
 <body>
@@ -74,5 +78,51 @@
     Mirrored from <a href="{{ site.source }}">the original</a>.
   </footer>
 </div>
+<script>
+// Progressive "load older posts": fetch the next paginated page, splice its
+// posts into the current one. No-JS visitors just follow the link instead.
+(function () {
+  var main = document.querySelector("main");
+  var loading = false;
+
+  function next() { return main.querySelector(".more[data-next]"); }
+
+  async function load(more) {
+    if (loading) return;
+    loading = true;
+    more.classList.add("loading");
+    try {
+      var res = await fetch(more.dataset.next, { headers: { "X-Requested-With": "fetch" } });
+      if (!res.ok) throw new Error(res.status);
+      var doc = new DOMParser().parseFromString(await res.text(), "text/html");
+      var frag = document.createDocumentFragment();
+      doc.querySelectorAll("main > .post").forEach(function (p) { frag.appendChild(p); });
+      var following = doc.querySelector("main > .more[data-next]");
+      more.replaceWith(frag);
+      if (following) { main.appendChild(following); observe(following); }
+    } catch (e) {
+      more.classList.remove("loading");
+    }
+    loading = false;
+  }
+
+  var io = "IntersectionObserver" in window
+    ? new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) load(e.target); });
+      }, { rootMargin: "800px 0px" })
+    : null;
+
+  function observe(more) {
+    if (io) io.observe(more);
+    more.querySelector("a").addEventListener("click", function (ev) {
+      ev.preventDefault();
+      load(more);
+    });
+  }
+
+  var first = next();
+  if (first) observe(first);
+})();
+</script>
 </body>
 </html>

@@ -1,5 +1,16 @@
 ---
 layout: layout.njk
+pagination:
+  data: posts
+  size: 10
+  alias: pagePosts
+  generatePageOnEmptyData: true
+permalink: "{% if pagination.pageNumber == 0 %}/{% else %}/page/{{ pagination.pageNumber + 1 }}/{% endif %}"
 ---
 {% from "feed.njk" import feed %}
-{{ feed(posts) }}
+{{ feed(pagePosts) }}
+{% if pagination.href.next %}
+<div class="more" data-next="{{ pagination.href.next | url }}">
+  <a href="{{ pagination.href.next | url }}">Older posts</a>
+</div>
+{% endif %}
