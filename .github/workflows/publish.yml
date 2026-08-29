@@ -52,7 +52,7 @@ jobs:
             echo "No new content."
           else
             git commit -m "content: sync feed ($(date -u +%Y-%m-%dT%H:%MZ))"
-            git push
+            git push origin HEAD:${{ github.event.repository.default_branch }}
           fi
 
       - name: Configure Pages
