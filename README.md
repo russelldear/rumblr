@@ -24,8 +24,8 @@ RSS feed ──▶ scripts/scrape.mjs ──▶ data/posts/<id>.json  +  media/<
   persistence layer.
 - **`eleventy.config.js` + `src/`** — builds the site. `src/_data/posts.js` reads
   every JSON file, newest first. `src/index.njk` renders the scrolling column
-  newest-first; `src/asc.njk` renders the same list oldest-first at `/asc/`. Both
-  share the `src/_includes/feed.njk` macro; the header links toggle between them.
+  newest-first; `src/asc.njk` renders the same list oldest-first at `/asc/`
+  (direct URL only, not linked). Both share the `src/_includes/feed.njk` macro.
 - **`.github/workflows/publish.yml`** — runs every 30 minutes: scrape → commit
   any new content → build → deploy to Pages. Also runs on pushes that touch the
   site source.
