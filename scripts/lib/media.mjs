@@ -3,7 +3,7 @@ import { mkdir, writeFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
-const MAX_WIDTH = 1080;
+const MAX_WIDTH = 1000;
 const WEBP_QUALITY = 82;
 const USER_AGENT =
   "RumblrBot/0.1 (+https://github.com/; RSS mirror)";
