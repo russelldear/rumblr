@@ -12,7 +12,7 @@ const POSTS_DIR = path.join(ROOT, "data", "posts");
 const MEDIA_ROOT = path.join(ROOT, "media");
 
 const FEED_URL =
-  process.env.FEED_URL || "https://salaamji.tumblr.com/rss";
+  process.env.FEED_URL || "https://feeds.feedburner.com/salaamji-updates";
 
 async function main() {
   const parser = new Parser({
