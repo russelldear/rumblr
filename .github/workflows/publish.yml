@@ -53,6 +53,7 @@ jobs:
           else
             git commit -m "content: sync feed ($(date -u +%Y-%m-%dT%H:%MZ))"
             git push origin HEAD:${{ github.event.repository.default_branch }}
+            echo "GITHUB_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           fi
 
       - name: Configure Pages
