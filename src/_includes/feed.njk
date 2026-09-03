@@ -22,7 +22,7 @@
       <div class="caption">{{ post.caption }}</div>
     {% endif %}
     <time datetime="{{ post.publishedAt | isoDate }}">
-      <a href="{{ post.permalink }}">{{ post.publishedAt | displayDate }}</a>
+      <a href="{{ ('/post/' + post.id + '/') | url }}">{{ post.publishedAt | displayDate }}</a>
     </time>
   </article>
 {% endfor %}
