@@ -28,8 +28,9 @@ RSS feed ──▶ scripts/scrape.mjs ──▶ data/posts/<id>.json  +  media/<
   page as you near the bottom and splices its posts in, so it reads as one
   infinite scroll. No-JS visitors get a plain "Older posts" link instead.
   `src/asc.njk` renders the full list oldest-first at `/asc/` on a single page
-  (direct URL only, not linked, not paginated). All share the
-  `src/_includes/feed.njk` macro.
+  (direct URL only, not linked, not paginated), and `src/post.njk` builds
+  individual post pages at `/post/<id>/` with a link back to the original Tumblr
+  post. All share the `src/_includes/feed.njk` macro.
 - **`.github/workflows/publish.yml`** — runs every 30 minutes: scrape → commit
   any new content → build → deploy to Pages. Also runs on pushes that touch the
   site source.
