@@ -105,12 +105,12 @@
       <button
         class="refresh"
         type="button"
+        aria-label="Refresh feed"
         data-refresh-feed
         data-feed-url="{{ site.refresh.feedUrl }}"
         data-endpoint="{{ site.refresh.endpoint }}"
         title="Refresh feed in background">
         <span class="refresh-mark">↻</span>
-        <span class="sr-only">Refresh feed</span>
       </button>
       <span class="sr-only" data-refresh-status aria-live="polite">Idle.</span>
       {% endif %}

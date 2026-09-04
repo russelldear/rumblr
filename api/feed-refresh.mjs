@@ -84,9 +84,18 @@ function checkBaseConfig(res) {
   return true;
 }
 
+function clearNonceCookie(res) {
+  res.setHeader("set-cookie", `${NONCE_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict; Secure`);
+}
+
 export default async function handler(req, res) {
   if (!checkBaseConfig(res)) return;
-  if (req.headers.origin && req.headers.origin !== ALLOWED_ORIGIN) {
+  const origin = req.headers.origin || "";
+  const referer = req.headers.referer || "";
+  const originAllowed =
+    (origin && origin === ALLOWED_ORIGIN)
+    || (!origin && referer.startsWith(ALLOWED_ORIGIN));
+  if (!originAllowed) {
     return send(res, 403, { error: "Origin not allowed" });
   }
   if (req.headers["x-requested-with"] !== "rumblr-refresh") {
@@ -128,6 +137,7 @@ export default async function handler(req, res) {
   const cookieNonce = dot === -1 ? "" : signedNonce.slice(0, dot);
   const cookieSig = dot === -1 ? "" : signedNonce.slice(dot + 1);
   if (cookieNonce !== body.auth.nonce || !verifySignature(cookieNonce, cookieSig)) {
+    clearNonceCookie(res);
     return send(res, 403, { error: "Invalid refresh token" });
   }
 
@@ -154,13 +164,15 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error("GitHub dispatch failed:", err);
+    clearNonceCookie(res);
     return send(res, 502, { error: "GitHub dispatch failed" });
   }
 
   if (!dispatchRes.ok) {
+    clearNonceCookie(res);
     return send(res, 502, { error: "GitHub dispatch failed" });
   }
 
-  res.setHeader("set-cookie", `${NONCE_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict; Secure`);
+  clearNonceCookie(res);
   return send(res, 202, { ok: true });
 }
