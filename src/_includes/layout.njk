@@ -94,10 +94,10 @@
       <button
         class="refresh"
         type="button"
+        aria-label="Refresh Tumblr feed"
         data-refresh-feed
         data-feed-url="{{ site.refresh.feedUrl }}"
-        data-dispatch-url="{{ site.refresh.dispatchUrl }}"
-        data-event-type="{{ site.refresh.eventType }}"
+        data-endpoint="{{ site.refresh.endpoint }}"
         title="Refresh feed in background">
         ↻
       </button>
@@ -171,7 +171,6 @@
 })();
 
 (function () {
-  var key = "rumblrRefreshToken";
   var button = document.querySelector("[data-refresh-feed]");
   if (!button) return;
 
@@ -183,44 +182,27 @@
   button.addEventListener("click", async function () {
     if (button.disabled) return;
 
-    var token = localStorage.getItem(key);
-    if (!token) {
-      token = prompt("GitHub token (repo scope) for background feed refresh:");
-      if (!token) return;
-      token = token.trim();
-      if (!token) return;
-      localStorage.setItem(key, token);
-    }
-
     setState("…", true);
 
     try {
       var feedRes = await fetch(button.dataset.feedUrl, { cache: "no-store" });
       if (!feedRes.ok) throw new Error("Feed fetch failed (" + feedRes.status + ")");
-      await feedRes.text();
+      var feedText = await feedRes.text();
 
-      var dispatchRes = await fetch(button.dataset.dispatchUrl, {
+      var endpointRes = await fetch(button.dataset.endpoint, {
         method: "POST",
-        headers: {
-          accept: "application/vnd.github+json",
-          authorization: "Bearer " + token,
-          "content-type": "application/json",
-          "x-github-api-version": "2022-11-28",
-        },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          event_type: button.dataset.eventType,
-          client_payload: {
+          feed: {
             feed_url: button.dataset.feedUrl,
             requested_at: new Date().toISOString(),
+            byte_length: feedText.length,
           },
         }),
       });
 
-      if (!dispatchRes.ok) {
-        if (dispatchRes.status === 401 || dispatchRes.status === 403) {
-          localStorage.removeItem(key);
-        }
-        throw new Error("Dispatch failed (" + dispatchRes.status + ")");
+      if (!endpointRes.ok) {
+        throw new Error("Refresh endpoint failed (" + endpointRes.status + ")");
       }
 
       button.title = "Refresh queued";
