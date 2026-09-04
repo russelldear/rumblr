@@ -3,6 +3,8 @@ name: Scrape & publish
 on:
   schedule:
     - cron: "0 * * * *"
+  repository_dispatch:
+    types: [browser_feed_refresh]
   workflow_dispatch:
   push:
     branches: [main]

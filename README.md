@@ -47,6 +47,24 @@ npm run serve      # Eleventy dev server at http://localhost:8080
 
 `npm run dev` does both.
 
+## Browser refresh button
+
+The home page includes a small ↻ button in the header.
+
+- It sends a background browser request to `/api/feed-refresh`.
+- `/api/feed-refresh` validates the request and sends a `repository_dispatch` event
+  (`browser_feed_refresh`) to this repo.
+- The existing `publish` workflow handles that event and persists new posts exactly
+  the same way as scheduled feed syncs (commit `data/posts` and `media`).
+
+`/api/feed-refresh` expects server-side environment variables:
+
+- `RUMBLR_DISPATCH_TOKEN` (required): GitHub token with repo write access
+- `RUMBLR_REFRESH_SIGNING_SECRET` (required): HMAC secret for one-time refresh tokens
+- `RUMBLR_ALLOWED_ORIGIN` (required): exact allowed site origin
+- `RUMBLR_REPO_OWNER` / `RUMBLR_REPO_NAME` (optional): dispatch target override
+- `RUMBLR_FEED_URL` (optional): expected browser feed URL override
+
 ## Deploying
 
 1. Create a **public** GitHub repo (public = unlimited Actions minutes) and push.
