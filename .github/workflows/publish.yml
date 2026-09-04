@@ -2,7 +2,12 @@ name: Scrape & publish
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    # Every 5 minutes: GitHub's floor for scheduled workflows. The Tumblr API
+    # is nowhere near its limit at this rate (one call per poll against a
+    # documented 300/minute per IP); GitHub is the binding constraint, not the
+    # key. Actual firing is best-effort: the schedule event is delayed under
+    # load, especially at the top of the hour.
+    - cron: "*/5 * * * *"
   workflow_dispatch:
   push:
     branches: [main]

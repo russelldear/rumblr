@@ -48,7 +48,7 @@ export async function writeState(file, state) {
  * Once past the threshold it re-alerts only every `repeatEvery` runs, so a
  * long outage does not send an email every hour.
  */
-export function evaluate({ previous, current, newPosts, threshold, repeatEvery = 24 }) {
+export function evaluate({ previous, current, newPosts, threshold, repeatEvery = 288 }) {
   const failing = current.consecutiveFailures;
 
   if (failing > 0) {
@@ -57,7 +57,10 @@ export function evaluate({ previous, current, newPosts, threshold, repeatEvery =
     if (crossed || periodic) {
       return {
         alert: true,
-        reason: `Feed retrieval has failed ${failing} consecutive time(s). Last error: ${current.lastError}`,
+        reason:
+          `Feed retrieval has failed ${failing} consecutive time(s)` +
+          `${current.failingSince ? ` since ${current.failingSince}` : ""}. ` +
+          `Last error: ${current.lastError}`,
       };
     }
     return { alert: false, reason: null };

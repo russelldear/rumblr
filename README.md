@@ -58,9 +58,9 @@ image size comes with real dimensions, and `total_posts` gives a way to tell
   (direct URL only, not linked, not paginated), and `src/post.njk` builds
   individual post pages at `/post/<id>/` with a link back to the original Tumblr
   post. All share the `src/_includes/feed.njk` macro.
-- **`.github/workflows/publish.yml`** — runs hourly: sync → commit any new
-  content → build → deploy to Pages. Also runs on pushes that touch the site
-  source.
+- **`.github/workflows/publish.yml`** — runs every 5 minutes: sync → commit any
+  new content → build → deploy to Pages. Also runs on pushes that touch the
+  site source.
 - **`.github/workflows/keepalive.yml`** — a monthly commit so GitHub doesn't
   disable the schedule if the feed goes quiet for 60+ days.
 
@@ -108,7 +108,8 @@ Environment variables (all optional):
 | `TUMBLR_API_KEY` | (none, **required**) | OAuth consumer key from tumblr.com/oauth/apps |
 | `TUMBLR_BLOG` | `salaamji.tumblr.com` | blog identifier to mirror |
 | `MAX_PAGES` | `5` | pages of 20 posts to walk back per run, at most |
-| `ALERT_AFTER_FAILURES` | `6` | consecutive failures before the workflow goes red |
+| `ALERT_AFTER_FAILURES` | `72` | consecutive failures before the workflow goes red (~6h at a 5-minute interval) |
+| `ALERT_REPEAT_EVERY` | `288` | failures between repeat alerts once past the threshold (~24h) |
 | `SITE_TITLE` | `salaamji` | header title |
 | `SITE_DESCRIPTION` | `Bamji in Morocco.` | header subtitle |
 | `PATH_PREFIX` | `/` | Eleventy path prefix (set by CI for project pages) |
@@ -127,6 +128,29 @@ Environment variables (all optional):
 - A later iteration may add authenticated direct posting. The post schema
   carries a `source` field so API-sourced and authored posts stay identical in
   shape. Records written before the API switch carry `source: "rss"`.
+
+## Polling frequency
+
+The schedule is `*/5 * * * *`, which is as often as GitHub allows: scheduled
+workflows have a floor of five minutes.
+
+The Tumblr API is not the limit. Each poll costs a single API call in the
+steady state (one page, stopping at the first post already mirrored), against
+a documented ceiling of 300 calls per minute per IP. That is roughly 0.2
+calls per minute, three orders of magnitude below the cap.
+
+Two caveats worth knowing:
+
+- GitHub only promises best effort. The `schedule` event "can be delayed
+  during periods of high loads", and the docs name the start of every hour as
+  a high-load window, so real intervals drift longer than five minutes.
+- Every run rebuilds and redeploys the site, even when nothing changed. That
+  is deliberate rather than overlooked: the footer's "Last poll" line is only
+  as fresh as the last deploy, and a stale timestamp reads exactly like a dead
+  poller, which is the ambiguity this whole design exists to remove. GitHub
+  Pages' 10-builds-per-hour soft limit does not apply to custom Actions
+  workflows, so the redeploys cost nothing but runner time, which is free on
+  public repositories.
 
 ## Knowing when retrieval breaks
 
@@ -147,9 +171,14 @@ that finds nothing new leaves the file byte-identical and commits nothing.
 The workflow goes red in exactly two cases:
 
 - **Sustained failure.** After `ALERT_AFTER_FAILURES` consecutive failures
-  (6 by default, so roughly six hours). A single blip stays silent, and once
-  past the threshold it re-alerts only every 24 runs, so a long outage does not
-  mail you hourly.
+  (72 by default, so roughly six hours at the 5-minute poll interval). A single
+  blip stays silent, and once past the threshold it re-alerts only every
+  `ALERT_REPEAT_EVERY` runs (~24 hours), so a long outage does not mail you
+  every five minutes. The alert reports `failingSince`, because a count of runs
+  only means something if you know the interval.
+
+  Both are counts of runs, not durations. **If you change the cron, rescale
+  them**, or a faster poll turns a brief blip into a red build.
 - **A gap.** The blog's `total_posts` went up but the sync captured nothing.
   That means a post exists which was not seen, which no number of green runs
   would otherwise reveal. This check is only possible because the API reports
