@@ -21,7 +21,11 @@ const API_KEY = process.env.TUMBLR_API_KEY;
 // already have, so this only bites if the blog posted more than 100 times
 // between runs, or on a first run against an empty repo.
 const MAX_PAGES = intFromEnv("MAX_PAGES", 5);
-const ALERT_AFTER_FAILURES = intFromEnv("ALERT_AFTER_FAILURES", 6);
+// Counted in runs, not minutes, so this default tracks the poll interval:
+// 72 runs at one every 5 minutes is roughly six hours of sustained failure.
+const ALERT_AFTER_FAILURES = intFromEnv("ALERT_AFTER_FAILURES", 72);
+// Re-alert cadence once past the threshold: ~24 hours at the same interval.
+const ALERT_REPEAT_EVERY = intFromEnv("ALERT_REPEAT_EVERY", 288);
 
 async function main() {
   await mkdir(POSTS_DIR, { recursive: true });
@@ -144,6 +148,7 @@ async function main() {
     current: state,
     newPosts,
     threshold: ALERT_AFTER_FAILURES,
+    repeatEvery: ALERT_REPEAT_EVERY,
   });
 
   await writeState(POLL_STATE_FILE, state);
