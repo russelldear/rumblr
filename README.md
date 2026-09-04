@@ -51,15 +51,19 @@ npm run serve      # Eleventy dev server at http://localhost:8080
 
 The home page includes a small ↻ button in the header.
 
-- It fetches `https://salaamji.tumblr.com/rss` in the browser (background request).
-- It then POSTs to `/api/feed-refresh`.
-- That endpoint sends a `repository_dispatch` event (`browser_feed_refresh`) to this repo.
+- It sends a background browser request to `/api/feed-refresh`.
+- `/api/feed-refresh` validates the request and sends a `repository_dispatch` event
+  (`browser_feed_refresh`) to this repo.
 - The existing `publish` workflow handles that event and persists new posts exactly
-  the same way as scheduled feed syncs (`npm run scrape` + commit `data/posts` and
-  `media`).
+  the same way as scheduled feed syncs (commit `data/posts` and `media`).
 
-`/api/feed-refresh` expects a server-side `RUMBLR_DISPATCH_TOKEN` with repo write
-access (plus optional `RUMBLR_REPO_OWNER` / `RUMBLR_REPO_NAME` overrides).
+`/api/feed-refresh` expects server-side environment variables:
+
+- `RUMBLR_DISPATCH_TOKEN` (required): GitHub token with repo write access
+- `RUMBLR_REFRESH_SIGNING_SECRET` (required): HMAC secret for one-time refresh tokens
+- `RUMBLR_ALLOWED_ORIGIN` (required): exact allowed site origin
+- `RUMBLR_REPO_OWNER` / `RUMBLR_REPO_NAME` (optional): dispatch target override
+- `RUMBLR_FEED_URL` (optional): expected browser feed URL override
 
 ## Deploying
 
