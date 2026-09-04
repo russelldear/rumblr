@@ -1,123 +1,164 @@
-import * as cheerio from "cheerio";
+/**
+ * Turn a Tumblr API v2 post (Neue Post Format) into a post record.
+ *
+ * NPF gives structured content blocks, so there is no HTML to scrape and no
+ * srcset to pick apart: image blocks carry every stored size with explicit
+ * dimensions, and text blocks are already plain text.
+ *
+ * Spec: https://github.com/tumblr/docs/blob/master/npf-spec.md
+ */
+
+const TITLE_SUBTYPES = new Set(["heading1", "heading2"]);
+const MAX_DERIVED_TITLE = 80;
 
 /**
- * Derive a stable post id from the feed guid/link.
- * Tumblr guids look like https://salaamji.tumblr.com/post/825866333548937216
+ * Post ids exceed Number.MAX_SAFE_INTEGER (they are 18 digits), so the `id`
+ * field is already lossy by the time JSON.parse is done with it. `id_string`
+ * is the only safe source.
  */
-export function postIdFromGuid(guid) {
-  if (!guid) return null;
-  const m = String(guid).match(/\/post\/(\d+)/);
-  if (m) return m[1];
-  // Fallback: last non-empty path segment, sanitised.
-  try {
-    const url = new URL(guid);
-    const seg = url.pathname.split("/").filter(Boolean).pop();
-    if (seg) return seg.replace(/[^a-zA-Z0-9_-]/g, "-");
-  } catch {
-    /* not a url */
-  }
-  return String(guid).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80);
+export function postId(post) {
+  const id = post?.id_string;
+  if (typeof id === "string" && /^\d+$/.test(id)) return id;
+  // Fall back to the permalink rather than the corrupted numeric id.
+  const m = String(post?.post_url || "").match(/\/post\/(\d+)/);
+  return m ? m[1] : null;
 }
 
-/**
- * Pick the highest-resolution URL from an <img>'s srcset, falling back to src.
- * Returns { url, width } where width may be null when unknown.
- */
-export function bestFromImg($img) {
-  const srcset = $img.attr("srcset");
+/** Largest entry in an NPF media array (or a lone media object). */
+export function largestMedia(media) {
+  const list = Array.isArray(media) ? media : media ? [media] : [];
   let best = null;
-  if (srcset) {
-    for (const entry of srcset.split(",")) {
-      const parts = entry.trim().split(/\s+/);
-      if (parts.length < 2) continue;
-      const url = parts[0];
-      const desc = parts[1];
-      const wm = desc.match(/^(\d+)w$/);
-      if (wm) {
-        const width = parseInt(wm[1], 10);
-        if (!best || width > best.width) best = { url, width };
-      }
+  for (const m of list) {
+    if (!m || typeof m.url !== "string" || !m.url) continue;
+    const width = Number.isFinite(m.width) ? m.width : 0;
+    if (!best || width > best.width) {
+      best = { url: m.url, width, height: Number.isFinite(m.height) ? m.height : null };
     }
   }
-  if (best) return best;
-  const src = $img.attr("src");
-  if (src) {
-    const w = parseInt($img.attr("data-orig-width") || "", 10);
-    return { url: src, width: Number.isFinite(w) ? w : null };
-  }
-  return null;
+  if (!best) return null;
+  return { url: best.url, width: best.width || null, height: best.height };
 }
 
 /**
- * Parse a feed item's description HTML into structured media + caption.
- * Returns { images: [{sourceUrl, origWidth, origHeight, alt}], videos: [{sourceUrl, poster}], caption }
+ * Walk NPF content blocks into { images, videos, captionBlocks, headings }.
+ * Unknown block types are ignored rather than throwing, so a new block type
+ * shipped by Tumblr degrades to a missing caption line, not a failed sync.
  */
-export function parseDescription(html) {
-  const $ = cheerio.load(html || "", null, false);
-
+export function parseContent(content) {
   const images = [];
-  $("img").each((_, el) => {
-    const $img = $(el);
-    const best = bestFromImg($img);
-    if (!best) return;
-    images.push({
-      sourceUrl: best.url,
-      origWidth: intOrNull($img.attr("data-orig-width")) ?? best.width,
-      origHeight: intOrNull($img.attr("data-orig-height")),
-      alt: ($img.attr("alt") || "").trim(),
-    });
-  });
-
   const videos = [];
-  $("video").each((_, el) => {
-    const $v = $(el);
-    let src = $v.attr("src");
-    if (!src) src = $v.find("source").first().attr("src");
-    if (!src) return;
-    videos.push({ sourceUrl: src, poster: $v.attr("poster") || null });
-  });
+  const captionBlocks = [];
+  const headings = [];
 
-  // Caption: text of the description with media stripped out.
-  $("figure, img, video, script, style").remove();
-  const blocks = [];
-  $("p, h1, h2, h3, blockquote, li").each((_, el) => {
-    const t = $(el).text().replace(/\s+/g, " ").trim();
-    if (t) blocks.push(t);
-  });
-  let caption = blocks.join("\n\n").trim();
-  if (!caption) {
-    caption = $.root().text().replace(/\s+/g, " ").trim();
+  for (const block of Array.isArray(content) ? content : []) {
+    if (!block || typeof block !== "object") continue;
+
+    switch (block.type) {
+      case "image": {
+        const best = largestMedia(block.media);
+        if (best) {
+          images.push({
+            sourceUrl: best.url,
+            origWidth: best.width,
+            origHeight: best.height,
+            alt: typeof block.alt_text === "string" ? block.alt_text.trim() : "",
+          });
+        }
+        break;
+      }
+
+      case "video": {
+        // Tumblr-hosted videos have a media object we can mirror. External
+        // embeds (YouTube, Vimeo) have no downloadable file, so record the
+        // canonical link as a caption line instead of a broken <video>.
+        const best = largestMedia(block.media);
+        const poster = largestMedia(block.poster);
+        if (best) {
+          videos.push({ sourceUrl: best.url, poster: poster ? poster.url : null });
+        } else if (typeof block.url === "string" && block.url) {
+          captionBlocks.push(block.url);
+        }
+        break;
+      }
+
+      case "audio": {
+        const best = largestMedia(block.media);
+        if (best) {
+          videos.push({ sourceUrl: best.url, poster: null });
+        } else if (typeof block.url === "string" && block.url) {
+          captionBlocks.push(block.url);
+        }
+        break;
+      }
+
+      case "link": {
+        const label = [block.title, block.description].filter(Boolean).join(": ");
+        const text = label || block.url;
+        if (text) captionBlocks.push(String(text));
+        break;
+      }
+
+      case "text": {
+        const text = typeof block.text === "string" ? block.text.trim() : "";
+        if (!text) break;
+        if (TITLE_SUBTYPES.has(block.subtype)) headings.push(text);
+        captionBlocks.push(text);
+        break;
+      }
+
+      default:
+        break;
+    }
   }
 
-  return { images, videos, caption };
-}
-
-function intOrNull(v) {
-  const n = parseInt(v ?? "", 10);
-  return Number.isFinite(n) ? n : null;
+  return { images, videos, captionBlocks, headings };
 }
 
 /**
- * Turn a raw rss-parser item into a post record (media still unresolved).
+ * Build a post record from an API post. Media is still unresolved at this
+ * point: images/videos carry remote sourceUrls, not local paths.
  */
-export function itemToPost(item) {
-  const link = item.link || item.guid;
-  const id = postIdFromGuid(item.guid || item.link);
-  const { images, videos, caption } = parseDescription(item.content || item["content:encoded"] || "");
-  const publishedAt = item.isoDate
-    ? new Date(item.isoDate).toISOString()
-    : item.pubDate
-      ? new Date(item.pubDate).toISOString()
-      : new Date().toISOString();
+export function apiPostToPost(post) {
+  const id = postId(post);
+
+  // A reblog with no commentary of its own has empty content; the reblogged
+  // material lives in the trail. Use the last trail entry so those posts
+  // still mirror something rather than rendering as an empty article.
+  let content = Array.isArray(post?.content) ? post.content : [];
+  if (content.length === 0 && Array.isArray(post?.trail) && post.trail.length > 0) {
+    const last = post.trail[post.trail.length - 1];
+    if (Array.isArray(last?.content)) content = last.content;
+  }
+
+  const { images, videos, captionBlocks, headings } = parseContent(content);
+  const caption = captionBlocks.join("\n\n").trim();
 
   return {
     id,
-    source: "rss",
-    permalink: link,
-    publishedAt,
-    title: (item.title || "").trim(),
+    source: "tumblr-api",
+    permalink: typeof post?.post_url === "string" ? post.post_url : null,
+    publishedAt: publishedAt(post),
+    title: headings[0] || deriveTitle(caption),
     caption,
-    images, // unresolved: still have sourceUrl, no local src yet
+    images,
     videos,
+    tags: Array.isArray(post?.tags) ? post.tags.filter((t) => typeof t === "string") : [],
   };
+}
+
+function publishedAt(post) {
+  if (Number.isFinite(post?.timestamp)) {
+    return new Date(post.timestamp * 1000).toISOString();
+  }
+  const parsed = post?.date ? new Date(post.date) : null;
+  if (parsed && !Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  return new Date().toISOString();
+}
+
+/** Individual post pages use `title` for <title>; fall back to the caption. */
+function deriveTitle(caption) {
+  if (!caption) return "";
+  const firstLine = caption.split("\n")[0].trim();
+  if (firstLine.length <= MAX_DERIVED_TITLE) return firstLine;
+  return firstLine.slice(0, MAX_DERIVED_TITLE).trimEnd() + "…";
 }

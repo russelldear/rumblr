@@ -3,8 +3,6 @@ name: Scrape & publish
 on:
   schedule:
     - cron: "0 * * * *"
-  repository_dispatch:
-    types: [browser_feed_refresh]
   workflow_dispatch:
   push:
     branches: [main]
@@ -15,23 +13,26 @@ on:
       - "package-lock.json"
       - ".github/workflows/publish.yml"
 
-# Allow the job to commit scraped content and deploy to Pages.
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
 # Never run two publishes at once; let a running one finish.
 concurrency:
   group: publish
   cancel-in-progress: false
 
 jobs:
-  publish:
+  # Sync and build carry no `environment`, so this job runs on any branch.
+  # Deployment lives in a separate job below because the github-pages
+  # environment is restricted to the default branch, and a job-level
+  # environment blocks the whole job, not just the deploy step.
+  sync:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+    permissions:
+      contents: write
+      # configure-pages reads the Pages site config to derive the path prefix.
+      pages: read
+    outputs:
+      should_alert: ${{ steps.scrape.outputs.should_alert }}
+      alert_reason: ${{ steps.scrape.outputs.alert_reason }}
+      is_default: ${{ steps.branch.outputs.is_default }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,21 +43,45 @@ jobs:
 
       - run: npm ci
 
-      - name: Scrape feed
+      - name: Sync from Tumblr API
+        id: scrape
         run: npm run scrape
+        env:
+          TUMBLR_API_KEY: ${{ secrets.TUMBLR_API_KEY }}
+
+      # Only the default branch owns the site's content. A run on a feature
+      # branch would otherwise push that branch's HEAD to the default branch,
+      # merging it without review.
+      - name: Check branch
+        id: branch
+        run: |
+          if [ "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH" ]; then
+            echo "is_default=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_default=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Running on $GITHUB_REF_NAME, not $DEFAULT_BRANCH: content will not be committed and the site will not be deployed."
+          fi
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
 
       - name: Commit new content
+        if: steps.branch.outputs.is_default == 'true'
         run: |
           git config user.name "rumblr-bot"
           git config user.email "rumblr-bot@users.noreply.github.com"
-          git add data/posts media
+          git add data/posts media data/poll-state.json
           if git diff --cached --quiet; then
             echo "No new content."
           else
             git commit -m "content: sync feed ($(date -u +%Y-%m-%dT%H:%MZ))"
             git push origin HEAD:${{ github.event.repository.default_branch }}
-            echo "GITHUB_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           fi
+
+      - name: Report uncommitted content
+        if: steps.branch.outputs.is_default != 'true'
+        run: |
+          git add --intent-to-add data/posts media data/poll-state.json
+          git status --short data/posts media data/poll-state.json
 
       - name: Configure Pages
         id: pages
@@ -72,6 +97,33 @@ jobs:
         with:
           path: _site
 
+  deploy:
+    needs: sync
+    if: needs.sync.outputs.is_default == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - name: Deploy to Pages
         id: deploy
         uses: actions/deploy-pages@v4
+
+  # Last, and needs the deploy, so the site is published before the run is
+  # marked failed. A single failed poll is noise: the sync step raises this
+  # only after a sustained outage, or when the blog gained posts we did not
+  # capture.
+  alert:
+    needs: [sync, deploy]
+    if: always() && needs.sync.outputs.should_alert == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Flag sustained retrieval failure
+        env:
+          REASON: ${{ needs.sync.outputs.alert_reason }}
+        run: |
+          echo "::error::$REASON"
+          exit 1
