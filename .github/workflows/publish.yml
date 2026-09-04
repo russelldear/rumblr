@@ -2,7 +2,7 @@ name: Scrape & publish
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "0 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
@@ -47,7 +47,7 @@ jobs:
         run: |
           git config user.name "rumblr-bot"
           git config user.email "rumblr-bot@users.noreply.github.com"
-          git add data media
+          git add data/posts media
           if git diff --cached --quiet; then
             echo "No new content."
           else
