@@ -1,0 +1,33 @@
+---
+permalink: /feed.xml
+eleventyExcludeFromCollections: true
+---
+{%- set items = posts | feedItems(site.feed) -%}
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>{{ site.title }}</title>
+    <link>{{ "/" | absolute(site.url) }}</link>
+    <description>{{ site.description }}</description>
+    <language>en</language>
+    <generator>Rumblr</generator>
+    <atom:link href="{{ site.feed.path | absolute(site.url) }}" rel="self" type="application/rss+xml" />
+{%- if items.length %}
+    <lastBuildDate>{{ items[0].publishedAt | rfc822 }}</lastBuildDate>
+{%- endif %}
+{%- for post in items %}
+    <item>
+      <title>{{ post.title if post.title else (post.publishedAt | displayDate) }}</title>
+      <link>{{ ("/post/" + post.id + "/") | absolute(site.url) }}</link>
+      {#- The Tumblr permalink was the guid of the feed this one replaces, so
+          reusing it lets a subscriber that saw both dedupe across the handover. #}
+      <guid isPermaLink="false">{{ post.permalink if post.permalink else (("/post/" + post.id + "/") | absolute(site.url)) }}</guid>
+      <pubDate>{{ post.publishedAt | rfc822 }}</pubDate>
+{%- for tag in post.tags %}
+      <category>{{ tag }}</category>
+{%- endfor %}
+      <description>{{ post | feedBody(site.url) | safe }}</description>
+    </item>
+{%- endfor %}
+  </channel>
+</rss>
