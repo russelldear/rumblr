@@ -49,6 +49,12 @@ async function main() {
     // paginating the whole blog: this mirror is forward-only by design.
     const pageLimit = known.size === 0 ? 1 : MAX_PAGES;
     const seen = [];
+    // Within-run dedupe, kept separate from `known`. Offset pagination reads a
+    // live list: a post published between two page fetches shifts the window,
+    // so the next page repeats the previous page's last item. Counting that
+    // repeat as "caught up" would stop pagination early and skip every older
+    // post still outstanding.
+    const seenIds = new Set();
 
     for (let page = 0; page < pageLimit; page++) {
       const result = await fetchPosts({
@@ -79,8 +85,9 @@ async function main() {
           sawKnown = true;
           continue;
         }
+        if (seenIds.has(post.id)) continue;
+        seenIds.add(post.id);
         seen.push(post);
-        known.add(post.id);
       }
 
       // Newest-first ordering means one known post on a page implies we have
@@ -151,7 +158,7 @@ async function main() {
         error,
         newPosts,
         totalPosts: state.totalPosts,
-        mirroredPosts: known.size,
+        mirroredPosts: known.size + newPosts,
         consecutiveFailures: state.consecutiveFailures,
       },
       null,

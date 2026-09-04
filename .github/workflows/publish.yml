@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # configure-pages reads the Pages site config to derive the path prefix.
+      pages: read
     outputs:
       should_alert: ${{ steps.scrape.outputs.should_alert }}
       alert_reason: ${{ steps.scrape.outputs.alert_reason }}
