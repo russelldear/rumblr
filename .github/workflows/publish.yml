@@ -46,7 +46,23 @@ jobs:
         env:
           TUMBLR_API_KEY: ${{ secrets.TUMBLR_API_KEY }}
 
+      # Only the default branch owns the site's content and deployment. A manual
+      # run on a feature branch would otherwise push that branch's HEAD to the
+      # default branch, merging it without review.
+      - name: Check branch
+        id: branch
+        run: |
+          if [ "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH" ]; then
+            echo "is_default=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_default=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Running on $GITHUB_REF_NAME, not $DEFAULT_BRANCH: content will not be committed and the site will not be deployed."
+          fi
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
       - name: Commit new content
+        if: steps.branch.outputs.is_default == 'true'
         run: |
           git config user.name "rumblr-bot"
           git config user.email "rumblr-bot@users.noreply.github.com"
@@ -58,6 +74,12 @@ jobs:
             git push origin HEAD:${{ github.event.repository.default_branch }}
             echo "GITHUB_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           fi
+
+      - name: Report uncommitted content
+        if: steps.branch.outputs.is_default != 'true'
+        run: |
+          git add --intent-to-add data/posts media data/poll-state.json
+          git status --short data/posts media data/poll-state.json
 
       - name: Configure Pages
         id: pages
@@ -75,6 +97,7 @@ jobs:
 
       - name: Deploy to Pages
         id: deploy
+        if: steps.branch.outputs.is_default == 'true'
         uses: actions/deploy-pages@v4
 
       # A single failed poll is noise. The scrape step raises this only after a
