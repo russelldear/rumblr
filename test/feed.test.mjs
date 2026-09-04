@@ -1,0 +1,89 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  normalisePostId,
+  selectFeedPosts,
+  feedDescription,
+  cdata,
+  DEFAULT_SINCE_POST_ID,
+} from "../scripts/lib/feed.mjs";
+
+const post = (id, iso) => ({ id, publishedAt: iso, images: [], videos: [], caption: "" });
+
+const BEFORE = post("826570522756349952", "2026-09-01T16:11:18Z");
+const CUTOFF = post("826639118293516288", "2026-09-02T10:21:36Z");
+const AFTER = post("826644056326176768", "2026-09-02T11:40:05Z");
+const ALL = [BEFORE, CUTOFF, AFTER];
+
+test("post ids are read from either Tumblr URL shape", () => {
+  assert.equal(
+    normalisePostId(
+      "https://www.tumblr.com/salaamji/826639118293516288/stunning-jellyfish-at-the-aquarium",
+    ),
+    "826639118293516288",
+  );
+  assert.equal(
+    normalisePostId("https://salaamji.tumblr.com/post/826639118293516288"),
+    "826639118293516288",
+  );
+  assert.equal(normalisePostId("826639118293516288"), "826639118293516288");
+  assert.equal(normalisePostId(""), null);
+  assert.equal(normalisePostId(null), null);
+});
+
+test("the cutoff post is included; everything older is not", () => {
+  assert.deepEqual(selectFeedPosts(ALL).map((p) => p.id), [AFTER.id, CUTOFF.id]);
+});
+
+test("moving the cutoff forward drops the boundary post as well", () => {
+  assert.deepEqual(
+    selectFeedPosts(ALL, { sincePostId: AFTER.id }).map((p) => p.id),
+    [AFTER.id],
+  );
+});
+
+test("the cutoff can be given as a URL", () => {
+  assert.deepEqual(
+    selectFeedPosts(ALL, {
+      sincePostId: "https://www.tumblr.com/salaamji/826644056326176768/x",
+    }).map((p) => p.id),
+    [AFTER.id],
+  );
+});
+
+test("items are newest first and capped", () => {
+  assert.deepEqual(selectFeedPosts(ALL, { maxItems: 1 }).map((p) => p.id), [AFTER.id]);
+});
+
+test("adjacent ids stay distinct, which Numbers cannot manage", () => {
+  const a = "826639118293516288";
+  const b = "826639118293516289";
+  // Precondition: 18-digit ids exceed Number.MAX_SAFE_INTEGER, so a Number
+  // comparison would treat these two different posts as the same one.
+  assert.equal(Number(a), Number(b));
+  assert.equal(selectFeedPosts([post(b, "2026-09-02T10:21:37Z")], { sincePostId: b }).length, 1);
+  assert.equal(selectFeedPosts([post(a, "2026-09-02T10:21:36Z")], { sincePostId: b }).length, 0);
+});
+
+test("descriptions use absolute media URLs and escape text", () => {
+  const html = feedDescription(
+    {
+      images: [{ src: "/media/1/a.webp", alt: 'A "quoted" & <tagged> alt' }],
+      caption: "one\n\ntwo & three",
+    },
+    "https://guid.nz/rumblr",
+  );
+  assert.ok(html.includes("https://guid.nz/rumblr/media/1/a.webp"));
+  assert.ok(html.includes("&quot;quoted&quot; &amp; &lt;tagged&gt;"));
+  assert.ok(html.includes("<p>two &amp; three</p>"));
+});
+
+test("a CDATA terminator in content is split rather than dropped", () => {
+  assert.equal(cdata("safe"), "<![CDATA[safe]]>");
+  assert.ok(cdata("a]]>b").includes("]]]]><![CDATA[>"));
+});
+
+test("the default cutoff is the last post Tumblr's own feed delivered", () => {
+  assert.equal(DEFAULT_SINCE_POST_ID, "826639118293516288");
+});

@@ -88,6 +88,11 @@ jobs:
           git add --intent-to-add data/posts media data/poll-state.json
           git status --short data/posts media data/poll-state.json
 
+      # After the content commit, so a code regression cannot cost us posts,
+      # and before the build, so it cannot ship one either.
+      - name: Test
+        run: npm test
+
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5
@@ -96,6 +101,10 @@ jobs:
         run: npm run build
         env:
           PATH_PREFIX: ${{ steps.pages.outputs.base_path }}
+          # Absolute base URL for the RSS feed's links and media. Taken from
+          # the Pages config so the custom domain and path prefix stay correct
+          # without being hardcoded.
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

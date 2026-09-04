@@ -54,6 +54,8 @@ image size comes with real dimensions, and `total_posts` gives a way to tell
   (`/`, `/page/2/`, `/page/3/`, …); a small script in the layout fetches the next
   page as you near the bottom and splices its posts in, so it reads as one
   infinite scroll. No-JS visitors get a plain "Older posts" link instead.
+  `src/rss.njk` publishes the site's own RSS feed at `/feed.xml`, linked for
+  autodiscovery from every page.
   `src/asc.njk` renders the full list oldest-first at `/asc/` on a single page
   (direct URL only, not linked, not paginated), and `src/post.njk` builds
   individual post pages at `/post/<id>/` with a link back to the original Tumblr
@@ -83,9 +85,10 @@ npm install
 export TUMBLR_API_KEY=your-consumer-key
 npm run scrape     # pull new posts into data/ and media/
 npm run serve      # Eleventy dev server at http://localhost:8080
+npm test           # feed selection and rendering
 ```
 
-`npm run dev` does both.
+`npm run dev` does the scrape and serve.
 
 ## Deploying
 
@@ -110,6 +113,9 @@ Environment variables (all optional):
 | `MAX_PAGES` | `5` | pages of 20 posts to walk back per run, at most |
 | `ALERT_AFTER_FAILURES` | `72` | consecutive failures before the workflow goes red (~6h at a 5-minute interval) |
 | `ALERT_REPEAT_EVERY` | `288` | failures between repeat alerts once past the threshold (~24h) |
+| `SITE_URL` | `http://localhost:8080` | absolute base URL for feed links (CI passes the Pages `base_url`) |
+| `FEED_SINCE_POST_ID` | `826639118293516288` | oldest post to publish in the feed; accepts an id or a Tumblr URL |
+| `FEED_MAX_ITEMS` | `50` | most items to publish in the feed |
 | `SITE_TITLE` | `salaamji` | header title |
 | `SITE_DESCRIPTION` | `Bamji in Morocco.` | header subtitle |
 | `PATH_PREFIX` | `/` | Eleventy path prefix (set by CI for project pages) |
@@ -128,6 +134,36 @@ Environment variables (all optional):
 - A later iteration may add authenticated direct posting. The post schema
   carries a `source` field so API-sourced and authored posts stay identical in
   shape. Records written before the API switch carry `source: "rss"`.
+
+## Our own RSS feed
+
+The site publishes `/feed.xml`, so subscribers can follow the mirror instead
+of Tumblr. Every page carries an autodiscovery `<link>`, so pointing a reader
+at the site is enough to find it.
+
+**The feed does not start at the beginning of the archive.** It begins at
+"Stunning jellyfish at the aquarium" (`826639118293516288`), the last post
+Tumblr's own feed delivered before that path stopped working. Everything
+older was already sent to subscribers once, and republishing it would arrive
+downstream as a wave of duplicates. Change the boundary with
+`FEED_SINCE_POST_ID`, which takes a bare post id or any Tumblr URL.
+
+That post is *included*, being the oldest item in the feed. If a subscriber
+already holds it and you would rather not re-send it, move the cutoff to the
+next post: `FEED_SINCE_POST_ID=826644056326176768`.
+
+Two details aimed at not duplicating anything downstream:
+
+- `<guid>` is the Tumblr permalink, which is what the feed this replaces used
+  as its guid. A reader that saw both feeds across the handover can therefore
+  recognise an overlapping post as one it already has.
+- `<link>` points at this site's own post page rather than Tumblr, since the
+  point of the feed is to stop depending on Tumblr being reachable.
+
+Absolute URLs throughout, for the item links and the images in each item body,
+built from `SITE_URL`. CI passes the `base_url` output of
+`actions/configure-pages`, so the custom domain and path prefix stay correct
+without being hardcoded.
 
 ## Polling frequency
 
