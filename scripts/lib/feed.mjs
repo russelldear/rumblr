@@ -8,14 +8,16 @@
  */
 
 /**
- * Oldest post to include, by id. This is the "Stunning jellyfish at the
- * aquarium" post, the last one Tumblr's feed delivered before that path
- * stopped working.
+ * Oldest post to include, by id. This is "Stupid sexy Flanders.", the first
+ * post Tumblr's own feed never delivered.
  *
- * If a subscriber already holds this post and you would rather not re-send it,
- * move the cutoff to the next post: 826644056326176768.
+ * The boundary sits here rather than one post earlier because the post before
+ * it, "Stunning jellyfish at the aquarium" (826639118293516288), was the last
+ * one Tumblr's feed did deliver. Subscribers already hold it, so starting on
+ * it would re-send a post they have. Starting after it means the two feeds
+ * meet exactly, with no gap and no overlap.
  */
-export const DEFAULT_SINCE_POST_ID = "826639118293516288";
+export const DEFAULT_SINCE_POST_ID = "826644056326176768";
 
 /** Feed readers do not want the whole archive; recent items are enough. */
 export const DEFAULT_MAX_ITEMS = 50;

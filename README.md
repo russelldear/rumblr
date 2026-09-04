@@ -114,7 +114,7 @@ Environment variables (all optional):
 | `ALERT_AFTER_FAILURES` | `72` | consecutive failures before the workflow goes red (~6h at a 5-minute interval) |
 | `ALERT_REPEAT_EVERY` | `288` | failures between repeat alerts once past the threshold (~24h) |
 | `SITE_URL` | `http://localhost:8080` | absolute base URL for feed links (CI passes the Pages `base_url`) |
-| `FEED_SINCE_POST_ID` | `826639118293516288` | oldest post to publish in the feed; accepts an id or a Tumblr URL |
+| `FEED_SINCE_POST_ID` | `826644056326176768` | oldest post to publish in the feed; accepts an id or a Tumblr URL |
 | `FEED_MAX_ITEMS` | `50` | most items to publish in the feed |
 | `SITE_TITLE` | `salaamji` | header title |
 | `SITE_DESCRIPTION` | `Bamji in Morocco.` | header subtitle |
@@ -142,15 +142,16 @@ of Tumblr. Every page carries an autodiscovery `<link>`, so pointing a reader
 at the site is enough to find it.
 
 **The feed does not start at the beginning of the archive.** It begins at
-"Stunning jellyfish at the aquarium" (`826639118293516288`), the last post
-Tumblr's own feed delivered before that path stopped working. Everything
-older was already sent to subscribers once, and republishing it would arrive
-downstream as a wave of duplicates. Change the boundary with
-`FEED_SINCE_POST_ID`, which takes a bare post id or any Tumblr URL.
+"Stupid sexy Flanders." (`826644056326176768`), the first post Tumblr's own
+feed never delivered. Everything older was already sent to subscribers once,
+and republishing it would arrive downstream as a wave of duplicates.
 
-That post is *included*, being the oldest item in the feed. If a subscriber
-already holds it and you would rather not re-send it, move the cutoff to the
-next post: `FEED_SINCE_POST_ID=826644056326176768`.
+The boundary sits there rather than one post earlier because the post before
+it, "Stunning jellyfish at the aquarium" (`826639118293516288`), was the last
+one Tumblr's feed did deliver. The two feeds therefore meet exactly, with no
+gap and no overlap. Change the boundary with `FEED_SINCE_POST_ID`, which takes
+a bare post id or any Tumblr URL; the post it names is included as the oldest
+item.
 
 Two details aimed at not duplicating anything downstream:
 

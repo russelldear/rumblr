@@ -33,14 +33,16 @@ test("post ids are read from either Tumblr URL shape", () => {
 });
 
 test("the cutoff post is included; everything older is not", () => {
-  assert.deepEqual(selectFeedPosts(ALL).map((p) => p.id), [AFTER.id, CUTOFF.id]);
+  assert.deepEqual(
+    selectFeedPosts(ALL, { sincePostId: CUTOFF.id }).map((p) => p.id),
+    [AFTER.id, CUTOFF.id],
+  );
 });
 
-test("moving the cutoff forward drops the boundary post as well", () => {
-  assert.deepEqual(
-    selectFeedPosts(ALL, { sincePostId: AFTER.id }).map((p) => p.id),
-    [AFTER.id],
-  );
+test("the post Tumblr already delivered is excluded by default", () => {
+  const ids = selectFeedPosts(ALL).map((p) => p.id);
+  assert.deepEqual(ids, [AFTER.id]);
+  assert.ok(!ids.includes(CUTOFF.id));
 });
 
 test("the cutoff can be given as a URL", () => {
@@ -84,6 +86,9 @@ test("a CDATA terminator in content is split rather than dropped", () => {
   assert.ok(cdata("a]]>b").includes("]]]]><![CDATA[>"));
 });
 
-test("the default cutoff is the last post Tumblr's own feed delivered", () => {
-  assert.equal(DEFAULT_SINCE_POST_ID, "826639118293516288");
+test("the default cutoff is the first post Tumblr's own feed never delivered", () => {
+  // One past "Stunning jellyfish at the aquarium" (826639118293516288), which
+  // Tumblr's feed did deliver. Starting on that post would re-send it.
+  assert.equal(DEFAULT_SINCE_POST_ID, "826644056326176768");
+  assert.deepEqual(selectFeedPosts(ALL).map((p) => p.id), [AFTER.id]);
 });
