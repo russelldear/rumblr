@@ -164,30 +164,79 @@ Two details aimed at not duplicating anything downstream:
 Absolute URLs throughout, for the item links and the images in each item body,
 built from `SITE_URL`. CI passes the `base_url` output of
 `actions/configure-pages`, so the custom domain and path prefix stay correct
-without being hardcoded.
+without being hardcoded. Setting a repository *variable* named `SITE_URL`
+overrides that, which is the lever for the problem below.
+
+Each item also declares its media as `<media:content>`, `<media:thumbnail>`
+and an `<enclosure>`, with real byte sizes read off disk at build time. Inline
+`<img>` in the description is not enough on its own: plenty of readers strip
+or ignore markup in descriptions and look for Media RSS instead, so without
+this a post can arrive with its picture missing.
+
+### Images and http
+
+Pages currently serves this site over **http**, not https: the deploy step
+reports `http://guid.nz/rumblr/`, and `base_url` follows it, so every image
+URL in the feed is `http://`.
+
+That is the likely reason images fail to appear in readers. Feed readers are
+mostly web applications served over https, and a browser will not load an
+`http://` image into an https page: it upgrades the request to https and, when
+that fails, blocks the image. The result is a blank space, regardless of the
+image format.
+
+The fix is to get the site onto https, at which point `base_url` becomes
+https on its own and the feed heals with no code change:
+
+1. Confirm `https://guid.nz/rumblr/` loads in a browser.
+2. If it does, turn on **Enforce HTTPS** in the Pages settings for the domain,
+   or set a repository variable `SITE_URL=https://guid.nz/rumblr` to switch
+   the feed over immediately without waiting for that.
+
+WebP is the other suspect and is much less likely: every browser has supported
+it since Safari 14 in 2020, and readers render in a browser or a webview. If
+images are still missing once the feed is on https, that is when to revisit
+the format, and it would mean storing a JPEG copy alongside each WebP.
 
 ## Polling frequency
 
-The schedule is `*/5 * * * *`, which is as often as GitHub allows: scheduled
+The cron is `*/5 * * * *`, which is as often as GitHub allows: scheduled
 workflows have a floor of five minutes.
 
-The Tumblr API is not the limit. Each poll costs a single API call in the
-steady state (one page, stopping at the first post already mirrored), against
-a documented ceiling of 300 calls per minute per IP. That is roughly 0.2
-calls per minute, three orders of magnitude below the cap.
+**Do not expect five minutes.** That is what the cron asks for, not what
+GitHub delivers. Measured against this repository's own run history while the
+cron was set to hourly (`0 * * * *`), scheduled runs actually arrived like
+this:
 
-Two caveats worth knowing:
+| | minutes between scheduled runs |
+| --- | --- |
+| shortest | 115 |
+| median | 215 |
+| longest | 452 |
 
-- GitHub only promises best effort. The `schedule` event "can be delayed
-  during periods of high loads", and the docs name the start of every hour as
-  a high-load window, so real intervals drift longer than five minutes.
-- Every run rebuilds and redeploys the site, even when nothing changed. That
-  is deliberate rather than overlooked: the footer's "Last poll" line is only
-  as fresh as the last deploy, and a stale timestamp reads exactly like a dead
-  poller, which is the ambiguity this whole design exists to remove. GitHub
-  Pages' 10-builds-per-hour soft limit does not apply to custom Actions
-  workflows, so the redeploys cost nothing but runner time, which is free on
-  public repositories.
+Not one interval came close to the 60 minutes requested. The `schedule` event
+is best effort, and the documented note that it "can be delayed during periods
+of high loads" understates what happens here: delivery is closer to one run
+every two to seven hours, whatever the cron says.
+
+Tightening the cron changed the request, not the delivery. If the mirror has
+to be prompt, the schedule is the wrong mechanism. Every other trigger fires
+immediately, so the fix is an external scheduler calling `workflow_dispatch`
+through the API, with the cron kept as a free best-effort backstop. That
+needs a fine-grained token with Actions write, which is deliberately narrower
+than `repository_dispatch`, whose Contents write permission can push code.
+
+The Tumblr API is nowhere near being the constraint. Each poll costs a single
+API call in the steady state (one page, stopping at the first post already
+mirrored), against a documented ceiling of 300 calls per minute per IP.
+
+One further note: every run rebuilds and redeploys the site, even when nothing
+changed. That is deliberate rather than overlooked. The footer's "Last poll"
+line is only as fresh as the last deploy, and a stale timestamp reads exactly
+like a dead poller, which is the ambiguity this design exists to remove.
+GitHub Pages' 10-builds-per-hour soft limit does not apply to custom Actions
+workflows, so the redeploys cost nothing but runner time, which is free on
+public repositories.
 
 ## Knowing when retrieval breaks
 

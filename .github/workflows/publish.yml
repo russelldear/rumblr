@@ -104,7 +104,7 @@ jobs:
           # Absolute base URL for the RSS feed's links and media. Taken from
           # the Pages config so the custom domain and path prefix stay correct
           # without being hardcoded.
-          SITE_URL: ${{ steps.pages.outputs.base_url }}
+          SITE_URL: ${{ vars.SITE_URL || steps.pages.outputs.base_url }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -4,7 +4,7 @@ eleventyExcludeFromCollections: true
 ---
 {%- set items = posts | feedItems(site.feed) -%}
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
   <channel>
     <title>{{ site.title }}</title>
     <link>{{ "/" | absolute(site.url) }}</link>
@@ -27,6 +27,18 @@ eleventyExcludeFromCollections: true
       <category>{{ tag }}</category>
 {%- endfor %}
       <description>{{ post | feedBody(site.url) | safe }}</description>
+      {#- Readers that ignore markup inside <description> look here instead.
+          Only the first item can be an <enclosure>: RSS 2.0 allows one. #}
+{%- set media = post | feedMedia(site.url) %}
+{%- for m in media %}
+      <media:content url="{{ m.url }}" type="{{ m.type }}"{% if m.width %} width="{{ m.width }}"{% endif %}{% if m.height %} height="{{ m.height }}"{% endif %}{% if m.length %} fileSize="{{ m.length }}"{% endif %} medium="image" />
+{%- endfor %}
+{%- if media.length %}
+      <media:thumbnail url="{{ media[0].url }}"{% if media[0].width %} width="{{ media[0].width }}"{% endif %}{% if media[0].height %} height="{{ media[0].height }}"{% endif %} />
+{%- if media[0].length %}
+      <enclosure url="{{ media[0].url }}" type="{{ media[0].type }}" length="{{ media[0].length }}" />
+{%- endif %}
+{%- endif %}
     </item>
 {%- endfor %}
   </channel>

@@ -60,6 +60,55 @@ export function absolute(pathname, baseUrl) {
   return base + (p.startsWith("/") ? p : `/${p}`);
 }
 
+const MIME_BY_EXT = {
+  webp: "image/webp",
+  gif: "image/gif",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  mp4: "video/mp4",
+  webm: "video/webm",
+};
+
+export function mimeFor(pathname) {
+  const ext = String(pathname || "").split(".").pop().toLowerCase();
+  return MIME_BY_EXT[ext] || "application/octet-stream";
+}
+
+/**
+ * Structured media for a feed item, as <media:content> and <enclosure>.
+ *
+ * Inline <img> in the description is not enough on its own: plenty of readers
+ * strip or ignore markup in descriptions and look for Media RSS instead, so a
+ * post can arrive with its picture missing. Declaring the media separately
+ * gives those readers something to render.
+ *
+ * `mediaRoot` is the on-disk directory behind /media, used only to stat file
+ * sizes, since <enclosure> requires a length. A file that cannot be measured
+ * is still listed, without a length.
+ */
+export function feedMedia(post, baseUrl, mediaRoot, statSize) {
+  const out = [];
+  const add = (src, width, height) => {
+    if (!src) return;
+    let length = null;
+    if (mediaRoot && statSize && src.startsWith("/media/")) {
+      length = statSize(mediaRoot + src.slice("/media".length));
+    }
+    out.push({
+      url: absolute(src, baseUrl),
+      type: mimeFor(src),
+      width: width ?? null,
+      height: height ?? null,
+      length,
+    });
+  };
+
+  for (const img of post.images || []) add(img.src, img.width, img.height);
+  for (const vid of post.videos || []) add(vid.src, null, null);
+  return out;
+}
+
 export function escapeHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
