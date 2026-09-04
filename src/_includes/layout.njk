@@ -31,37 +31,6 @@
   header h1 { font-size: 1.15rem; margin: 0; letter-spacing: 0.02em; }
   header p { margin: 4px 0 0; font-size: 0.85rem; opacity: 0.6; }
   header h1 a { color: inherit; text-decoration: none; }
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .refresh {
-    border: 0;
-    background: transparent;
-    color: inherit;
-    opacity: 0.5;
-    cursor: pointer;
-    font: inherit;
-    font-size: 0.95rem;
-    line-height: 1;
-    padding: 2px 4px;
-  }
-  .refresh:hover,
-  .refresh:focus-visible { opacity: 0.85; }
-  .refresh:disabled { opacity: 0.35; cursor: wait; }
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
   .post {
     padding: 28px 0;
     border-bottom: 1px solid #e6e6e6;
@@ -99,22 +68,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="head">
-      <h1><a href="{{ '/' | url }}">{{ site.title }}</a></h1>
-      {% if page.url == "/" %}
-      <button
-        class="refresh"
-        type="button"
-        aria-label="Refresh feed"
-        data-refresh-feed
-        data-feed-url="{{ site.refresh.feedUrl }}"
-        data-endpoint="{{ site.refresh.endpoint }}"
-        title="Refresh feed in background">
-        <span class="refresh-mark">↻</span>
-      </button>
-      <span class="sr-only" data-refresh-status aria-live="polite">Idle.</span>
-      {% endif %}
-    </div>
+    <h1><a href="{{ '/' | url }}">{{ site.title }}</a></h1>
     {% if site.description %}<p>{{ site.description }}</p>{% endif %}
   </header>
   <main>
@@ -126,11 +80,10 @@
     <br>
     Last poll:
     <time datetime="{{ feedStatus.polledAt }}">{{ feedStatus.polledAt }}</time>
-    —
-    {% if feedStatus.failedCount == 0 %}
-      all feeds OK
+    {% if feedStatus.ok %}
+      &middot; OK, {{ feedStatus.mirroredPosts }} of {{ feedStatus.totalPosts }} posts mirrored
     {% else %}
-      {{ feedStatus.failedCount }} feed(s) failed
+      &middot; failed {{ feedStatus.consecutiveFailures }}&times; in a row
     {% endif %}
     .
     {% endif %}
@@ -182,72 +135,6 @@
   if (first) observe(first);
 })();
 
-(function () {
-  var button = document.querySelector("[data-refresh-feed]");
-  if (!button) return;
-  var mark = button.querySelector(".refresh-mark");
-  var status = document.querySelector("[data-refresh-status]");
-  var resetTimer = null;
-
-  function setState(text, busy, message) {
-    if (mark) mark.textContent = text;
-    if (status && message) status.textContent = message;
-    button.disabled = !!busy;
-  }
-
-  function queueReset(delayMs) {
-    if (resetTimer) clearTimeout(resetTimer);
-    resetTimer = setTimeout(function () {
-      button.title = "Refresh feed in background";
-      setState("↻", false, "Idle.");
-      resetTimer = null;
-    }, delayMs);
-  }
-
-  button.addEventListener("click", async function () {
-    if (button.disabled) return;
-
-    setState("…", true, "Refreshing feed.");
-
-    try {
-      var authRes = await fetch(button.dataset.endpoint, {
-        method: "GET",
-        headers: { "x-requested-with": "rumblr-refresh" },
-        credentials: "same-origin",
-      });
-      if (!authRes.ok) {
-        throw new Error("Refresh auth failed (" + authRes.status + ")");
-      }
-      var auth = await authRes.json();
-
-      var endpointRes = await fetch(button.dataset.endpoint, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-requested-with": "rumblr-refresh",
-        },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          auth: { nonce: auth.nonce },
-          feed: {
-            feed_url: button.dataset.feedUrl,
-          },
-        }),
-      });
-
-      if (!endpointRes.ok) {
-        throw new Error("Refresh endpoint failed (" + endpointRes.status + ")");
-      }
-
-      setState("✓", false, "Refresh queued.");
-      queueReset(1800);
-    } catch (err) {
-      console.error(err);
-      setState("!", false, "Refresh failed. Try again.");
-      queueReset(2500);
-    }
-  });
-})();
 </script>
 </body>
 </html>

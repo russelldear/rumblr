@@ -6,7 +6,7 @@ import sharp from "sharp";
 const MAX_WIDTH = 1000;
 const WEBP_QUALITY = 82;
 const USER_AGENT =
-  "RumblrBot/0.1 (+https://github.com/; RSS mirror)";
+  "RumblrBot/1.0 (+https://github.com/russelldear/rumblr)";
 
 async function fetchBuffer(url, { retries = 2 } = {}) {
   let lastErr;
