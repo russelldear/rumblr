@@ -31,7 +31,7 @@ RSS feed ──▶ scripts/scrape.mjs ──▶ data/posts/<id>.json  +  media/<
   (direct URL only, not linked, not paginated), and `src/post.njk` builds
   individual post pages at `/post/<id>/` with a link back to the original Tumblr
   post. All share the `src/_includes/feed.njk` macro.
-- **`.github/workflows/publish.yml`** — runs every 30 minutes: scrape → commit
+- **`.github/workflows/publish.yml`** — runs hourly: scrape → commit
   any new content → build → deploy to Pages. Also runs on pushes that touch the
   site source.
 - **`.github/workflows/keepalive.yml`** — a monthly commit so GitHub doesn't
@@ -51,7 +51,7 @@ npm run serve      # Eleventy dev server at http://localhost:8080
 
 1. Create a **public** GitHub repo (public = unlimited Actions minutes) and push.
 2. Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. The `publish` workflow runs on the half-hour. Trigger it manually the first
+3. The `publish` workflow runs hourly. Trigger it manually the first
    time from the **Actions** tab (`Run workflow`).
 
 If this is a project site (`<user>.github.io/<repo>/`), the workflow passes the
@@ -64,7 +64,8 @@ Environment variables (all optional):
 
 | var | default | purpose |
 | --- | --- | --- |
-| `FEED_URL` | `https://feeds.feedburner.com/salaamji-updates` | source feed |
+| `FEED_URLS` | `https://feeds.feedburner.com/salaamji-updates,https://salaamji.tumblr.com/rss` | comma/newline-separated feed URLs |
+| `FEED_URL` | (fallback for `FEED_URLS`) | single source feed URL |
 | `SITE_TITLE` | `salaamji` | header title |
 | `SITE_DESCRIPTION` | `A mirror.` | header subtitle |
 | `PATH_PREFIX` | `/` | Eleventy path prefix (set by CI for project pages) |
@@ -81,3 +82,7 @@ Environment variables (all optional):
 - A later iteration may add authenticated direct posting. The post schema carries
   a `source` field (`"rss"`) from day one so feed and authored posts stay
   identical in shape.
+- Duplicate posts across configured feeds are ignored by post id; whichever feed
+  is processed first wins.
+- Feed polling failures are surfaced in the site footer as "Last poll …" status,
+  but feed fetch failures do not fail the workflow.

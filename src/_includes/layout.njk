@@ -76,6 +76,18 @@
   </main>
   <footer>
     Mirrored from <a href="{{ site.source }}">the original</a>.
+    {% if feedStatus %}
+    <br>
+    Last poll:
+    <time datetime="{{ feedStatus.polledAt }}">{{ feedStatus.polledAt }}</time>
+    —
+    {% if feedStatus.failedCount == 0 %}
+      all feeds OK
+    {% else %}
+      {{ feedStatus.failedCount }} feed(s) failed
+    {% endif %}
+    .
+    {% endif %}
   </footer>
 </div>
 <script>
