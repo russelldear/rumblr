@@ -5,6 +5,8 @@ import {
   normalisePostId,
   selectFeedPosts,
   feedDescription,
+  feedMedia,
+  mimeFor,
   cdata,
   DEFAULT_SINCE_POST_ID,
 } from "../scripts/lib/feed.mjs";
@@ -91,4 +93,55 @@ test("the default cutoff is the first post Tumblr's own feed never delivered", (
   // Tumblr's feed did deliver. Starting on that post would re-send it.
   assert.equal(DEFAULT_SINCE_POST_ID, "826644056326176768");
   assert.deepEqual(selectFeedPosts(ALL).map((p) => p.id), [AFTER.id]);
+});
+
+test("media types are derived from the file extension", () => {
+  assert.equal(mimeFor("/media/1/a.webp"), "image/webp");
+  assert.equal(mimeFor("/media/1/a.gif"), "image/gif");
+  assert.equal(mimeFor("/media/1/a.mp4"), "video/mp4");
+  assert.equal(mimeFor("/media/1/a.weird"), "application/octet-stream");
+});
+
+test("structured media is absolute, typed and sized", () => {
+  const media = feedMedia(
+    {
+      images: [{ src: "/media/1/a.webp", width: 1000, height: 750 }],
+      videos: [{ src: "/media/1/b.mp4" }],
+    },
+    "https://guid.nz/rumblr",
+    "/repo/media",
+    (p) => (p === "/repo/media/1/a.webp" ? 47922 : null),
+  );
+
+  assert.deepEqual(media, [
+    {
+      url: "https://guid.nz/rumblr/media/1/a.webp",
+      type: "image/webp",
+      width: 1000,
+      height: 750,
+      length: 47922,
+    },
+    {
+      url: "https://guid.nz/rumblr/media/1/b.mp4",
+      type: "video/mp4",
+      width: null,
+      height: null,
+      length: null,
+    },
+  ]);
+});
+
+test("an unmeasurable file is still listed, just without a length", () => {
+  const [m] = feedMedia(
+    { images: [{ src: "/media/1/gone.webp" }] },
+    "https://guid.nz/rumblr",
+    "/repo/media",
+    () => null,
+  );
+  assert.equal(m.url, "https://guid.nz/rumblr/media/1/gone.webp");
+  assert.equal(m.length, null);
+});
+
+test("a post with no media yields none, so no empty enclosure is emitted", () => {
+  assert.deepEqual(feedMedia({ caption: "text only" }, "https://x", "/m", () => 1), []);
 });
