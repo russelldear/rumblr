@@ -61,8 +61,11 @@ image size comes with real dimensions, and `total_posts` gives a way to tell
   individual post pages at `/post/<id>/` with a link back to the original Tumblr
   post. All share the `src/_includes/feed.njk` macro.
 - **`.github/workflows/publish.yml`** — runs every 5 minutes: sync → commit any
-  new content → build → deploy to Pages. Also runs on pushes that touch the
-  site source.
+  new content → build → deploy to Pages. Also runs on pushes that touch
+  anything published, content included, so a hand-edited post or image does
+  not sit on `main` undeployed. The sync job's own commits carry `[skip ci]`,
+  since that run deploys them itself and a second run would only repeat the
+  work.
 - **`.github/workflows/keepalive.yml`** — a monthly commit so GitHub doesn't
   disable the schedule if the feed goes quiet for 60+ days.
 

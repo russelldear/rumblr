@@ -11,8 +11,16 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    # Anything that changes what gets published. Content is included because a
+    # hand-edited post or image would otherwise sit on main undeployed; the
+    # sync job's own commits carry [skip ci], since that run deploys them
+    # itself and a second run would only repeat the work.
     paths:
       - "src/**"
+      - "scripts/**"
+      - "test/**"
+      - "data/**"
+      - "media/**"
       - "eleventy.config.js"
       - "package.json"
       - "package-lock.json"
@@ -78,7 +86,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No new content."
           else
-            git commit -m "content: sync feed ($(date -u +%Y-%m-%dT%H:%MZ))"
+            git commit -m "content: sync feed ($(date -u +%Y-%m-%dT%H:%MZ)) [skip ci]"
             git push origin HEAD:${{ github.event.repository.default_branch }}
           fi
 
