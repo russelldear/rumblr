@@ -4,7 +4,9 @@ import path from "node:path";
 import sharp from "sharp";
 
 const MAX_WIDTH = 1000;
-const WEBP_QUALITY = 82;
+// JPEG rather than WebP: some feed readers will not render WebP, and an image
+// that does not appear in a subscriber's reader is worse than a larger file.
+const JPEG_QUALITY = 85;
 const USER_AGENT =
   "RumblrBot/1.0 (+https://github.com/russelldear/rumblr)";
 
@@ -40,19 +42,33 @@ export async function storeImage({ sourceUrl, postId, mediaRoot }) {
   const animated = (meta.pages || 1) > 1;
 
   if (animated) {
-    // Keep animated GIFs/WebP untouched — resizing them is expensive and lossy.
-    outBuf = raw;
-    ext = meta.format === "webp" ? "webp" : "gif";
+    // Animation cannot survive JPEG, so these keep their frames. Resizing them
+    // is expensive and lossy, so the bytes pass through untouched. An animated
+    // WebP is re-containered as a GIF, because nothing WebP may reach the feed.
     width = meta.width || null;
     height = meta.pageHeight || meta.height || null;
+    if (meta.format === "webp") {
+      try {
+        outBuf = await sharp(raw, { animated: true }).gif().toBuffer();
+        ext = "gif";
+      } catch {
+        outBuf = raw;
+        ext = "webp";
+      }
+    } else {
+      outBuf = raw;
+      ext = "gif";
+    }
   } else {
-    const pipeline = sharp(raw)
+    const { data, info } = await sharp(raw)
       .rotate()
       .resize({ width: MAX_WIDTH, withoutEnlargement: true })
-      .webp({ quality: WEBP_QUALITY });
-    const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
+      // JPEG has no alpha; without this, transparency renders black.
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
+      .toBuffer({ resolveWithObject: true });
     outBuf = data;
-    ext = "webp";
+    ext = "jpg";
     width = info.width;
     height = info.height;
   }
