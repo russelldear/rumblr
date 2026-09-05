@@ -9,7 +9,8 @@
     "build": "eleventy",
     "serve": "eleventy --serve",
     "dev": "npm run scrape && npm run serve",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "verify": "node scripts/verify-site.mjs"
   },
   "engines": {
     "node": ">=20"

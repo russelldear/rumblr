@@ -29,6 +29,12 @@ export default function (eleventyConfig) {
   // RSS pubDate wants RFC 822; toUTCString() is the compatible form.
   eleventyConfig.addFilter("rfc822", (d) => new Date(d).toUTCString());
   eleventyConfig.addFilter("absolute", (p, base) => absolute(p, base));
+  // Meta tag values are single-line and short; collapse and clip so a caption
+  // with newlines cannot break the attribute or bloat the head.
+  eleventyConfig.addFilter("metaText", (v, max = 200) => {
+    const t = String(v ?? "").replace(/\s+/g, " ").trim();
+    return t.length > max ? t.slice(0, max - 1).trimEnd() + "\u2026" : t;
+  });
   eleventyConfig.addFilter("feedItems", (posts, opts) => selectFeedPosts(posts, opts || {}));
   eleventyConfig.addFilter("feedBody", (post, base) => cdata(feedDescription(post, base)));
   eleventyConfig.addFilter("feedMedia", (post, base) =>
