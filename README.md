@@ -38,8 +38,8 @@ image size comes with real dimensions, and `total_posts` gives a way to tell
 
 - **`scripts/scrape.mjs`** — pages back through the blog until it reaches a post
   it already has, and for each new one: picks the largest size from each NPF
-  image block, downloads it, resizes to max 1000px wide, converts to WebP
-  (animated GIFs are kept as-is), and writes a JSON record. Image URLs in the
+  image block, downloads it, resizes to max 1000px wide, converts to JPEG
+  (animated images keep their frames as GIF), and writes a JSON record. Image URLs in the
   stored data are always local paths; the original remote URLs are never
   persisted. Videos hosted by Tumblr are mirrored too; external embeds
   (YouTube, Vimeo) have no downloadable file, so their link is kept in the
@@ -193,10 +193,29 @@ https on its own and the feed heals with no code change:
    or set a repository variable `SITE_URL=https://guid.nz/rumblr` to switch
    the feed over immediately without waiting for that.
 
-WebP is the other suspect and is much less likely: every browser has supported
-it since Safari 14 in 2020, and readers render in a browser or a webview. If
-images are still missing once the feed is on https, that is when to revisit
-the format, and it would mean storing a JPEG copy alongside each WebP.
+### Images are JPEG, not WebP
+
+Moving the feed to https was not enough on its own: readers still would not
+render the images, and the remaining difference was the format. Stored images
+are now JPEG at quality 85.
+
+WebP "should" work, which is why it was the original choice: every browser has
+supported it since Safari 14 in 2020. But a reader that will not show a picture
+is worse than a larger file, and JPEG removes the question. It also sidesteps
+a second possibility that was never ruled out, that GitHub Pages serves `.webp`
+with a content type some readers reject, since `.jpg` is mapped everywhere.
+
+The cost is about 17% more bytes, measured across the existing images when they
+were converted (2380KB to 2776KB). Against the ~1 GB Pages limit that is
+thousands of posts away from mattering.
+
+Two format notes:
+
+- **Animation cannot be JPEG.** Animated images keep their frames and are
+  stored as GIF. An animated WebP is re-containered as GIF, so nothing WebP
+  ever reaches the feed.
+- **JPEG has no transparency.** Images are flattened onto white, because
+  otherwise a transparent PNG renders with a black background.
 
 ## Polling frequency
 
