@@ -196,6 +196,35 @@ https on its own and the feed heals with no code change:
    or set a repository variable `SITE_URL=https://guid.nz/rumblr` to switch
    the feed over immediately without waiting for that.
 
+### Why images appear in chat clients
+
+Slack, and most chat clients, do not take the picture from the feed at all.
+They take the item's `<link>`, fetch that page, and read its OpenGraph tags.
+Nothing in the feed's markup, `media:content` and `enclosure` included, is
+consulted.
+
+That is why Tumblr's own feed shows images in Slack while carrying no media
+elements whatsoever: its items link to Tumblr post pages, and those pages
+carry `og:image`.
+
+So every page here emits OpenGraph and Twitter card tags, with `og:image` set
+to the post's own image as an absolute https URL. Two constraints worth
+keeping in mind if the head is ever reorganised:
+
+- Slack requests only the **first 32kB** of the page, so the tags must come
+  before anything bulky. They currently sit above the inline stylesheet.
+- Slack cannot resolve a relative path, so `og:image` must be absolute.
+
+`npm run verify` checks the built `_site` for both, and CI runs it between the
+build and the upload. The unit tests run against source and cannot see the
+rendered output, which is where every image problem in this project has
+actually surfaced.
+
+A related bug fixed at the same time: every page carried
+`<link rel="canonical" href="https://salaamji.tumblr.com/">`, telling any
+crawler or unfurler that the page was really the Tumblr blog's front page.
+Pages now declare themselves canonical.
+
 ### Images are JPEG, not WebP
 
 Moving the feed to https was not enough on its own: readers still would not

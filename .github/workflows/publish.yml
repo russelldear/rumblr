@@ -114,6 +114,13 @@ jobs:
           # without being hardcoded.
           SITE_URL: ${{ vars.SITE_URL || steps.pages.outputs.base_url }}
 
+      # The unit tests run against source. This checks the rendered output,
+      # where the image problems in this project have actually surfaced.
+      - name: Verify built site
+        run: npm run verify
+        env:
+          SITE_URL: ${{ vars.SITE_URL || steps.pages.outputs.base_url }}
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

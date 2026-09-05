@@ -7,6 +7,14 @@ pagination:
 permalink: "/post/{{ post.id }}/index.html"
 eleventyComputed:
   title: "{% if post.title %}{{ post.title }}{% else %}{{ post.publishedAt | displayDate }}{% endif %} | {{ site.title }}"
+  # Drives the OpenGraph tags in the layout, so a link to this post unfurls
+  # in Slack with its picture rather than as bare text.
+  ogType: "article"
+  ogTitle: "{% if post.title %}{{ post.title }}{% else %}{{ post.publishedAt | displayDate }}{% endif %}"
+  ogDescription: "{{ post.caption }}"
+  ogImage: "{% if post.images.length %}{{ post.images[0].src | absolute(site.url) }}{% endif %}"
+  ogImageWidth: "{% if post.images.length %}{{ post.images[0].width }}{% endif %}"
+  ogImageHeight: "{% if post.images.length %}{{ post.images[0].height }}{% endif %}"
 ---
 <article class="post" id="p{{ post.id }}">
   {% for img in post.images %}

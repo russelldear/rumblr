@@ -5,8 +5,37 @@
 <link rel="alternate" type="application/rss+xml" title="{{ site.title }}" href="{{ site.feed.path | absolute(site.url) }}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ title or site.title }}</title>
-<meta name="description" content="{{ site.description }}">
-<link rel="canonical" href="{{ site.source }}">
+{%- set metaUrl = page.url | absolute(site.url) %}
+{%- set metaImage = ogImage if ogImage else (og.image | absolute(site.url) if og.image else "") %}
+{%- set metaWidth = ogImageWidth if ogImage else og.width %}
+{%- set metaHeight = ogImageHeight if ogImage else og.height %}
+<meta name="description" content="{{ (ogDescription or site.description) | metaText }}">
+{#- Was pointing every page at the Tumblr blog's front page, which told any
+    crawler or link unfurler that this page was really somewhere else. #}
+<link rel="canonical" href="{{ metaUrl }}">
+{#- Slack, and most chat clients, get the image for a link preview from
+    OpenGraph on the linked page rather than from anything in the feed. Keep
+    these near the top of the head: Slack fetches only the first 32kB. #}
+<meta property="og:site_name" content="{{ site.title }}">
+<meta property="og:type" content="{{ ogType or 'website' }}">
+<meta property="og:url" content="{{ metaUrl }}">
+<meta property="og:title" content="{{ (ogTitle or site.title) | metaText }}">
+<meta property="og:description" content="{{ (ogDescription or site.description) | metaText }}">
+{%- if metaImage %}
+<meta property="og:image" content="{{ metaImage }}">
+{%- if metaWidth %}
+<meta property="og:image:width" content="{{ metaWidth }}">
+{%- endif %}
+{%- if metaHeight %}
+<meta property="og:image:height" content="{{ metaHeight }}">
+{%- endif %}
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{{ metaImage }}">
+{%- else %}
+<meta name="twitter:card" content="summary">
+{%- endif %}
+<meta name="twitter:title" content="{{ (ogTitle or site.title) | metaText }}">
+<meta name="twitter:description" content="{{ (ogDescription or site.description) | metaText }}">
 <style>
   :root { color-scheme: light dark; }
   * { box-sizing: border-box; }
