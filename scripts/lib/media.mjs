@@ -112,3 +112,69 @@ export async function existingPostIds(postsDir) {
     throw err;
   }
 }
+
+/**
+ * Download and store every image and video a post references, returning the
+ * record's media arrays. Shared by the scheduled sync and by a targeted
+ * resync, so both store media identically.
+ */
+export async function storePostMedia(post, mediaRoot) {
+  const images = [];
+  const videos = [];
+  let newImages = 0;
+  let unresolved = 0;
+
+  for (const img of post.images) {
+    try {
+      const stored = await storeImage({
+        sourceUrl: img.sourceUrl,
+        postId: post.id,
+        mediaRoot,
+      });
+      images.push({
+        src: stored.src,
+        width: stored.width ?? img.origWidth ?? null,
+        height: stored.height ?? img.origHeight ?? null,
+        alt: img.alt || "",
+      });
+      newImages++;
+    } catch (err) {
+      console.warn(`  image failed (${img.sourceUrl}): ${err.message}`);
+      images.push({
+        src: img.sourceUrl,
+        width: img.origWidth ?? null,
+        height: img.origHeight ?? null,
+        alt: img.alt || "",
+        unresolved: true,
+      });
+      unresolved++;
+    }
+  }
+
+  for (const vid of post.videos) {
+    try {
+      const stored = await storeFile({
+        sourceUrl: vid.sourceUrl,
+        postId: post.id,
+        mediaRoot,
+      });
+      let poster = null;
+      if (vid.poster) {
+        try {
+          poster = (
+            await storeImage({ sourceUrl: vid.poster, postId: post.id, mediaRoot })
+          ).src;
+        } catch {
+          poster = vid.poster;
+        }
+      }
+      videos.push({ src: stored.src, poster });
+    } catch (err) {
+      console.warn(`  video failed (${vid.sourceUrl}): ${err.message}`);
+      videos.push({ src: vid.sourceUrl, poster: vid.poster, unresolved: true });
+      unresolved++;
+    }
+  }
+
+  return { images, videos, newImages, unresolved };
+}

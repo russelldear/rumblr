@@ -1,0 +1,80 @@
+name: Resync a post
+
+# The scheduled sync has no edit detection, and the Tumblr API offers no edit
+# timestamp to build one from, so an edited post keeps whatever it was
+# mirrored with. Run this with the post's id to pull the current version.
+#
+# It commits without [skip ci], so the publish workflow picks the change up
+# and rebuilds the site. Nothing here needs to duplicate that.
+
+on:
+  workflow_dispatch:
+    inputs:
+      post_id:
+        description: "Post id, or any Tumblr URL containing it"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+# Share the publish lock: a resync writes the same files a sync does.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  resync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Resync
+        id: resync
+        run: npm run resync -- "$POST_ID"
+        env:
+          POST_ID: ${{ inputs.post_id }}
+          TUMBLR_API_KEY: ${{ secrets.TUMBLR_API_KEY }}
+
+      # Only the default branch owns the site's content. Without this, running
+      # from a feature branch would push that branch's HEAD to the default
+      # branch, merging it without review.
+      - name: Check branch
+        id: branch
+        run: |
+          if [ "$GITHUB_REF_NAME" = "$DEFAULT_BRANCH" ]; then
+            echo "is_default=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_default=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Running on $GITHUB_REF_NAME, not $DEFAULT_BRANCH: nothing will be committed."
+          fi
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+      - name: Commit
+        if: steps.branch.outputs.is_default == 'true'
+        run: |
+          git config user.name "rumblr-bot"
+          git config user.email "rumblr-bot@users.noreply.github.com"
+          git add data/posts media
+          if git diff --cached --quiet; then
+            echo "Nothing changed; no commit."
+          else
+            git commit -m "content: resync post ${POST_ID}"
+            git push origin HEAD:${{ github.event.repository.default_branch }}
+          fi
+        env:
+          POST_ID: ${{ inputs.post_id }}
+
+      - name: Report uncommitted changes
+        if: steps.branch.outputs.is_default != 'true'
+        run: |
+          git add --intent-to-add data/posts media
+          git status --short data/posts media

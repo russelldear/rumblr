@@ -10,7 +10,8 @@
     "serve": "eleventy --serve",
     "dev": "npm run scrape && npm run serve",
     "test": "node --test test/*.test.mjs",
-    "verify": "node scripts/verify-site.mjs"
+    "verify": "node scripts/verify-site.mjs",
+    "resync": "node scripts/resync-post.mjs"
   },
   "engines": {
     "node": ">=20"
