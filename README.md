@@ -114,6 +114,8 @@ Environment variables (all optional):
 | `TUMBLR_API_KEY` | (none, **required**) | OAuth consumer key from tumblr.com/oauth/apps |
 | `TUMBLR_BLOG` | `salaamji.tumblr.com` | blog identifier to mirror |
 | `MAX_PAGES` | `5` | pages of 20 posts to walk back per run, at most |
+| `MAX_DELETIONS` | `5` | most posts one run may remove before refusing and alerting |
+| `DELETE_DRY_RUN` | unset | when true, report removals without making them |
 | `ALERT_AFTER_FAILURES` | `72` | consecutive failures before the workflow goes red (~6h at a 5-minute interval) |
 | `ALERT_REPEAT_EVERY` | `288` | failures between repeat alerts once past the threshold (~24h) |
 | `SITE_URL` | `http://localhost:8080` | absolute base URL for feed links (CI passes the Pages `base_url`) |
@@ -288,6 +290,68 @@ like a dead poller, which is the ambiguity this design exists to remove.
 GitHub Pages' 10-builds-per-hour soft limit does not apply to custom Actions
 workflows, so the redeploys cost nothing but runner time, which is free on
 public repositories.
+
+## Deleting a post
+
+Delete it on Tumblr. The sync notices it is gone and removes the mirrored copy
+and its media on the next run. There is no delete button and no second place
+to authenticate: Tumblr is the source of truth, and you are already signed in
+there.
+
+Absence is a dangerous signal, because a broken API response looks exactly
+like an emptied blog. Four things keep that from wiping the mirror, the first
+being the one that matters most:
+
+- **Every removal is confirmed against the post itself.** Before deleting
+  anything, the sync asks the API for that specific post id. Only an explicit
+  404, which the API documents as the response for an id that is not there,
+  authorises the removal. A timeout, a 5xx, an auth failure or anything
+  malformed all mean "unknown", and the post is kept and reconsidered next
+  run. This is deliberately a different question down a different code path
+  from the listing, so a fault in the pagination logic cannot delete on its
+  own.
+
+- **Completeness is counted, never assumed.** A run may only conclude a post
+  was deleted if it saw at least as many upstream ids as `total_posts` claims
+  exist. A short or empty page proves nothing. Anything older than the window
+  actually fetched is left alone.
+- **A cap.** More than `MAX_DELETIONS` missing posts in one run is treated as
+  a probable fault: nothing is deleted, and the run goes red with an
+  explanation. Raise the variable if the removals are genuine.
+- **A dry run.** `DELETE_DRY_RUN=true` reports what would go without touching
+  anything.
+
+It costs nothing in the normal case. Every sync already fetches the newest
+page and reads `total_posts`, so a recently deleted post is caught by
+comparing sets already in hand. Only a deletion further back, which shows up
+as more posts mirrored than upstream reports, pays for a walk through the
+blog, and only on that one run.
+
+| scenario | API calls |
+| --- | --- |
+| nothing changed | 1 |
+| recent post deleted | 2, the second confirming the deletion |
+| older post deleted | 5, once, then back to 1 |
+
+Confirmation costs one call per post actually being removed, and none at all
+when nothing has been deleted.
+
+Two things it does not do. Deleting a post does not retract it from anyone
+who already received it in the feed. And this repository is public, so the
+post and its image remain in git history: removal from the site is not
+erasure.
+
+## Editing a post
+
+There is no edit detection, and the Tumblr API offers nothing to build one
+from: a post carries a publish timestamp and nothing that changes when it is
+edited. Catching edits would mean re-fetching and comparing every post's
+content on some cadence.
+
+To pull an edit through by hand, delete the post's JSON record and its media
+directory and let the next sync re-fetch it. The id becomes unknown, so the
+post is captured again with its current content. Unchanged images land on the
+same path, since filenames are content hashes.
 
 ## Knowing when retrieval breaks
 
