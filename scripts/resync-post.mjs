@@ -74,11 +74,18 @@ async function main() {
   };
 
   const changes = describeChanges(before, after);
-  await writeFile(recordPath, JSON.stringify(after, null, 2) + "\n");
-  await pruneMedia(id, after);
+
+  // Only rewrite when something actually differs. resyncedAt alone would
+  // change the file on every run, producing a commit and a deploy for a post
+  // that is identical, and contradicting the "nothing changed" it just
+  // reported.
+  if (changes.length > 0) {
+    await writeFile(recordPath, JSON.stringify(after, null, 2) + "\n");
+  }
+  await pruneMedia(id, changes.length > 0 ? after : before);
 
   if (changes.length === 0) {
-    console.log(`Post ${id} resynced; nothing changed.`);
+    console.log(`Post ${id} resynced; nothing changed, record left as it was.`);
   } else {
     console.log(`Post ${id} resynced. Changed: ${changes.join(", ")}`);
     for (const field of changes) {

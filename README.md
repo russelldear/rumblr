@@ -366,6 +366,9 @@ Media is re-downloaded and any superseded file removed. An unchanged picture
 lands on the same path, because filenames are content hashes, so a resync of
 an unedited post costs nothing and reports no change.
 
+When nothing differs the record is left exactly as it was, so an unnecessary
+resync produces no commit and no deploy.
+
 If the post has been deleted upstream, the resync says so and changes nothing.
 Removing it is the scheduled sync's job, and only after its own confirmation.
 
