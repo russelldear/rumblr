@@ -76,9 +76,12 @@ async function getJson(url, { timeoutMs, retries }) {
       const text = await res.text();
 
       // 4xx other than 429 are permanent (bad key, blog gone): fail fast.
+      // The status travels with the error: a 404 is the answer to "does this
+      // post still exist", not merely a failure.
       if (!res.ok && res.status !== 429 && res.status < 500) {
         throw Object.assign(new Error(`HTTP ${res.status}: ${summarise(text)}`), {
           permanent: true,
+          status: res.status,
         });
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${summarise(text)}`);
@@ -102,6 +105,40 @@ async function getJson(url, { timeoutMs, retries }) {
 /** Keep error messages short enough to sit in a JSON status file. */
 function summarise(text) {
   return String(text || "").replace(/\s+/g, " ").trim().slice(0, 200);
+}
+
+/**
+ * Whether one post still exists upstream, asked directly rather than inferred
+ * from its absence in a listing.
+ *
+ * Returns "gone" only on an explicit 404, which the API documents as the
+ * response for an id that is not there. Every other outcome, including
+ * timeouts, 5xx and anything malformed, is "unknown". That asymmetry is the
+ * point: absence of an answer must never authorise a deletion, and a run that
+ * cannot tell simply tries again next time.
+ */
+export async function postExists({ blog, apiKey, id, timeoutMs = 20000, retries = 2 }) {
+  const url = new URL(`${API_ROOT}/blog/${encodeURIComponent(blog)}/posts`);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("id", String(id));
+  url.searchParams.set("npf", "true");
+
+  let body;
+  try {
+    body = await getJson(url, { timeoutMs, retries });
+  } catch (err) {
+    return err.status === 404 ? "gone" : "unknown";
+  }
+
+  // Tumblr also reports not-found inside the envelope on a 200.
+  if (body?.meta?.status === 404) return "gone";
+  if (body?.meta?.status !== 200) return "unknown";
+
+  const posts = body?.response?.posts;
+  if (Array.isArray(posts) && posts.length > 0) return "present";
+  // A 200 carrying no post is not the documented shape for either case, so it
+  // is not trusted in the direction that deletes something.
+  return "unknown";
 }
 
 /** Redact the api_key so it can never reach a log or a committed status file. */

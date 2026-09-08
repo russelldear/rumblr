@@ -299,7 +299,17 @@ to authenticate: Tumblr is the source of truth, and you are already signed in
 there.
 
 Absence is a dangerous signal, because a broken API response looks exactly
-like an emptied blog. Three things keep that from wiping the mirror:
+like an emptied blog. Four things keep that from wiping the mirror, the first
+being the one that matters most:
+
+- **Every removal is confirmed against the post itself.** Before deleting
+  anything, the sync asks the API for that specific post id. Only an explicit
+  404, which the API documents as the response for an id that is not there,
+  authorises the removal. A timeout, a 5xx, an auth failure or anything
+  malformed all mean "unknown", and the post is kept and reconsidered next
+  run. This is deliberately a different question down a different code path
+  from the listing, so a fault in the pagination logic cannot delete on its
+  own.
 
 - **Completeness is counted, never assumed.** A run may only conclude a post
   was deleted if it saw at least as many upstream ids as `total_posts` claims
@@ -320,8 +330,11 @@ blog, and only on that one run.
 | scenario | API calls |
 | --- | --- |
 | nothing changed | 1 |
-| recent post deleted | 1 |
-| older post deleted | 4, once, then back to 1 |
+| recent post deleted | 2, the second confirming the deletion |
+| older post deleted | 5, once, then back to 1 |
+
+Confirmation costs one call per post actually being removed, and none at all
+when nothing has been deleted.
 
 Two things it does not do. Deleting a post does not retract it from anyone
 who already received it in the feed. And this repository is public, so the

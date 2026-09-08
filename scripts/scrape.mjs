@@ -3,7 +3,7 @@ import { mkdir, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { fetchPosts, MAX_LIMIT, redact } from "./lib/tumblr.mjs";
+import { fetchPosts, postExists, MAX_LIMIT, redact } from "./lib/tumblr.mjs";
 import { apiPostToPost } from "./lib/parse.mjs";
 import { storeImage, storeFile, existingPostIds } from "./lib/media.mjs";
 import { readState, writeState, evaluate } from "./lib/pollState.mjs";
@@ -48,6 +48,7 @@ async function main() {
 
   let newPosts = 0;
   let deletedPosts = 0;
+  let skippedDeletions = 0;
   let blockedReason = null;
   let newImages = 0;
   let unresolved = 0;
@@ -193,7 +194,21 @@ async function main() {
         console.error(blockedReason);
       } else {
         for (const id of doomed) {
-          console.log(`Deleted upstream, removing ${id}${DELETE_DRY_RUN ? " (dry run)" : ""}`);
+          // Absence from a listing is inference. Ask about the post itself
+          // before removing it: a different question down a different path,
+          // so a fault in the pagination logic cannot delete anything on its
+          // own. Only an explicit 404 counts as confirmation.
+          const upstream = await postExists({ blog: BLOG, apiKey: API_KEY, id });
+          if (upstream !== "gone") {
+            console.warn(
+              `  ${id} looked deleted, but asking upstream directly says "${upstream}". Leaving it.`,
+            );
+            skippedDeletions++;
+            continue;
+          }
+          console.log(
+            `Confirmed deleted upstream, removing ${id}${DELETE_DRY_RUN ? " (dry run)" : ""}`,
+          );
           if (!DELETE_DRY_RUN) {
             await rm(path.join(POSTS_DIR, `${id}.json`), { force: true });
             await rm(path.join(MEDIA_ROOT, id), { recursive: true, force: true });
@@ -252,8 +267,10 @@ async function main() {
   );
 
   console.log(
-    `Done. ${newPosts} new post(s), ${deletedPosts} removed, ${newImages} image(s) stored, ` +
-      `${unresolved} unresolved, ${state.consecutiveFailures} consecutive failure(s).`,
+    `Done. ${newPosts} new post(s), ${deletedPosts} removed` +
+      `${skippedDeletions ? ` (${skippedDeletions} unconfirmed, kept)` : ""}, ` +
+      `${newImages} image(s) stored, ${unresolved} unresolved, ` +
+      `${state.consecutiveFailures} consecutive failure(s).`,
   );
   if (alert) console.error(`ALERT: ${reason}`);
 
