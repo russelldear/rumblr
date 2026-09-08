@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { fetchPosts, postExists, MAX_LIMIT, redact } from "./lib/tumblr.mjs";
 import { apiPostToPost } from "./lib/parse.mjs";
-import { storeImage, storeFile, existingPostIds } from "./lib/media.mjs";
+import { storePostMedia, existingPostIds } from "./lib/media.mjs";
 import { readState, writeState, evaluate } from "./lib/pollState.mjs";
 import {
   deletionsToApply,
@@ -122,7 +122,7 @@ async function main() {
     // rather than a hole that the next run would skip past.
     for (const post of seen.reverse()) {
       console.log(`New post ${post.id} — ${post.title || "(untitled)"}`);
-      const stored = await storePostMedia(post);
+      const stored = await storePostMedia(post, MEDIA_ROOT);
       newImages += stored.newImages;
       unresolved += stored.unresolved;
 
@@ -307,67 +307,6 @@ async function collectUpstreamIds(total) {
   return ids;
 }
 
-/** Download and store every image and video a post references. */
-async function storePostMedia(post) {
-  const images = [];
-  const videos = [];
-  let newImages = 0;
-  let unresolved = 0;
-
-  for (const img of post.images) {
-    try {
-      const stored = await storeImage({
-        sourceUrl: img.sourceUrl,
-        postId: post.id,
-        mediaRoot: MEDIA_ROOT,
-      });
-      images.push({
-        src: stored.src,
-        width: stored.width ?? img.origWidth ?? null,
-        height: stored.height ?? img.origHeight ?? null,
-        alt: img.alt || "",
-      });
-      newImages++;
-    } catch (err) {
-      console.warn(`  image failed (${img.sourceUrl}): ${err.message}`);
-      images.push({
-        src: img.sourceUrl,
-        width: img.origWidth ?? null,
-        height: img.origHeight ?? null,
-        alt: img.alt || "",
-        unresolved: true,
-      });
-      unresolved++;
-    }
-  }
-
-  for (const vid of post.videos) {
-    try {
-      const stored = await storeFile({
-        sourceUrl: vid.sourceUrl,
-        postId: post.id,
-        mediaRoot: MEDIA_ROOT,
-      });
-      let poster = null;
-      if (vid.poster) {
-        try {
-          poster = (
-            await storeImage({ sourceUrl: vid.poster, postId: post.id, mediaRoot: MEDIA_ROOT })
-          ).src;
-        } catch {
-          poster = vid.poster;
-        }
-      }
-      videos.push({ src: stored.src, poster });
-    } catch (err) {
-      console.warn(`  video failed (${vid.sourceUrl}): ${err.message}`);
-      videos.push({ src: vid.sourceUrl, poster: vid.poster, unresolved: true });
-      unresolved++;
-    }
-  }
-
-  return { images, videos, newImages, unresolved };
-}
 
 function intFromEnv(name, fallback) {
   const n = parseInt(process.env[name] ?? "", 10);

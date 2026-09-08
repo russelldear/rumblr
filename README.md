@@ -348,10 +348,29 @@ from: a post carries a publish timestamp and nothing that changes when it is
 edited. Catching edits would mean re-fetching and comparing every post's
 content on some cadence.
 
-To pull an edit through by hand, delete the post's JSON record and its media
-directory and let the next sync re-fetch it. The id becomes unknown, so the
-post is captured again with its current content. Unchanged images land on the
-same path, since filenames are content hashes.
+To pull an edit through, run the **Resync a post** workflow from the Actions
+tab with the post's id, or any Tumblr URL containing it. It re-reads that one
+post and rewrites its record, reporting which fields changed.
+
+```bash
+npm run resync -- 826917247804211200
+npm run resync -- https://www.tumblr.com/salaamji/826917247804211200/some-slug
+```
+
+It fetches the post **by id** rather than by paging, which matters: deleting a
+record and waiting for the sync only works while the post is still inside the
+fetch window. For an older post the sync stops at the first id it already has,
+never re-fetches it, and the record is simply lost.
+
+Media is re-downloaded and any superseded file removed. An unchanged picture
+lands on the same path, because filenames are content hashes, so a resync of
+an unedited post costs nothing and reports no change.
+
+If the post has been deleted upstream, the resync says so and changes nothing.
+Removing it is the scheduled sync's job, and only after its own confirmation.
+
+The commit it makes deliberately omits `[skip ci]`, so the publish workflow
+picks the change up and rebuilds the site.
 
 ## Knowing when retrieval breaks
 

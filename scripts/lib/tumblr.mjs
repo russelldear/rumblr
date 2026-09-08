@@ -108,6 +108,43 @@ function summarise(text) {
 }
 
 /**
+ * One post by id, or null when the API says it is not there.
+ *
+ * Unlike postExists, this throws on anything it cannot interpret. A resync is
+ * something a person asked for and is watching, so a failure should be loud
+ * rather than quietly leaving the record as it was.
+ */
+export async function fetchPost({ blog, apiKey, id, timeoutMs = 20000, retries = 2 }) {
+  if (!blog) throw new Error("fetchPost: blog identifier is required");
+  if (!apiKey) throw new Error("fetchPost: apiKey is required");
+
+  const url = new URL(`${API_ROOT}/blog/${encodeURIComponent(blog)}/posts`);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("id", String(id));
+  url.searchParams.set("npf", "true");
+
+  let body;
+  try {
+    body = await getJson(url, { timeoutMs, retries });
+  } catch (err) {
+    if (err.status === 404) return null;
+    throw err;
+  }
+
+  const status = body?.meta?.status;
+  if (status === 404) return null;
+  if (status !== 200) {
+    throw new Error(`Tumblr API returned ${status ?? "no status"}: ${body?.meta?.msg || "unknown"}`);
+  }
+
+  const posts = body?.response?.posts;
+  if (!Array.isArray(posts) || posts.length === 0) {
+    throw new Error(`Post ${id} returned no content despite a 200 response`);
+  }
+  return posts[0];
+}
+
+/**
  * Whether one post still exists upstream, asked directly rather than inferred
  * from its absence in a listing.
  *
