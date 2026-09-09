@@ -6,6 +6,7 @@ import {
   selectFeedPosts,
   feedDescription,
   feedMedia,
+  previewImage,
   cdata,
   absolute,
 } from "./scripts/lib/feed.mjs";
@@ -37,6 +38,7 @@ export default function (eleventyConfig) {
   });
   eleventyConfig.addFilter("feedItems", (posts, opts) => selectFeedPosts(posts, opts || {}));
   eleventyConfig.addFilter("feedBody", (post, base) => cdata(feedDescription(post, base)));
+  eleventyConfig.addFilter("previewImage", (post) => previewImage(post));
   eleventyConfig.addFilter("feedMedia", (post, base) =>
     feedMedia(post, base, MEDIA_ROOT, statSize),
   );

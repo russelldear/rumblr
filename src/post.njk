@@ -12,9 +12,9 @@ eleventyComputed:
   ogType: "article"
   ogTitle: "{% if post.title %}{{ post.title }}{% else %}{{ post.publishedAt | displayDate }}{% endif %}"
   ogDescription: "{{ post.caption }}"
-  ogImage: "{% if post.images.length %}{{ post.images[0].src | absolute(site.url) }}{% endif %}"
-  ogImageWidth: "{% if post.images.length %}{{ post.images[0].width }}{% endif %}"
-  ogImageHeight: "{% if post.images.length %}{{ post.images[0].height }}{% endif %}"
+  ogImage: "{% set p = post | previewImage %}{% if p %}{{ p.src | absolute(site.url) }}{% endif %}"
+  ogImageWidth: "{% set p = post | previewImage %}{% if p and p.width %}{{ p.width }}{% endif %}"
+  ogImageHeight: "{% set p = post | previewImage %}{% if p and p.height %}{{ p.height }}{% endif %}"
 ---
 <article class="post" id="p{{ post.id }}">
   {% for img in post.images %}

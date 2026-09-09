@@ -52,6 +52,21 @@ export function selectFeedPosts(posts, { sincePostId, maxItems } = {}) {
     .slice(0, limit);
 }
 
+/**
+ * The image that best represents a post, for a link preview.
+ *
+ * A video-only post has no entry in `images`, so without the poster fallback
+ * the page would advertise some other post's photograph as its own, which is
+ * worse than advertising none.
+ */
+export function previewImage(post) {
+  const image = (post?.images || []).find((i) => i?.src);
+  if (image) return { src: image.src, width: image.width ?? null, height: image.height ?? null };
+  const poster = (post?.videos || []).find((v) => v?.poster)?.poster;
+  if (poster) return { src: poster, width: null, height: null };
+  return null;
+}
+
 /** Join a root-relative path onto the site's base URL. */
 export function absolute(pathname, baseUrl) {
   const p = String(pathname || "");
@@ -95,9 +110,11 @@ export function feedMedia(post, baseUrl, mediaRoot, statSize) {
     if (mediaRoot && statSize && src.startsWith("/media/")) {
       length = statSize(mediaRoot + src.slice("/media".length));
     }
+    const type = mimeFor(src);
     out.push({
       url: absolute(src, baseUrl),
-      type: mimeFor(src),
+      type,
+      medium: type.startsWith("video/") ? "video" : type.startsWith("audio/") ? "audio" : "image",
       width: width ?? null,
       height: height ?? null,
       length,
