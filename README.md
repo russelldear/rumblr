@@ -251,6 +251,19 @@ with the video pointing at Tumblr's own URL and counted as unresolved.
 too large to mirror still leaves the page and its link preview with a local
 image.
 
+Media is stored under whatever extension its source URL carried, so the MIME
+map in `scripts/lib/feed.mjs` has to cover what Tumblr serves rather than only
+what we write. The first real video arrived as `.mov`, which was missing, so
+it went out to readers typed `application/octet-stream` and, because the
+medium follows the type, announced as an image. `npm run verify` now fails on
+any `application/octet-stream` in the feed, since that always means an
+extension is missing from the map.
+
+`.mov` is played by Safari and Chrome but not reliably by Firefox, which does
+not support the QuickTime container. Nothing transcodes, so a `.mov` post may
+not play for some visitors. Fixing that properly would mean remuxing to MP4
+and taking on an ffmpeg dependency.
+
 A post whose only media is a video takes its `og:image` from that poster.
 Without it the page would advertise the newest *other* post's photograph as
 its own, which is worse than advertising none.

@@ -75,14 +75,33 @@ export function absolute(pathname, baseUrl) {
   return base + (p.startsWith("/") ? p : `/${p}`);
 }
 
+// Media is stored under the extension its source URL carried, so this has to
+// cover what Tumblr actually serves rather than only what we write ourselves.
+// The first real video arrived as .mov, which was missing here and so went out
+// to readers as an octet-stream, and therefore as medium="image".
 const MIME_BY_EXT = {
+  // images
   webp: "image/webp",
   gif: "image/gif",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   png: "image/png",
+  avif: "image/avif",
+  // video
   mp4: "video/mp4",
+  m4v: "video/mp4",
+  mov: "video/quicktime",
   webm: "video/webm",
+  mkv: "video/x-matroska",
+  avi: "video/x-msvideo",
+  ogv: "video/ogg",
+  // audio
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  oga: "audio/ogg",
+  wav: "audio/wav",
+  flac: "audio/flac",
 };
 
 export function mimeFor(pathname) {
