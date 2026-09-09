@@ -31,7 +31,7 @@ eleventyExcludeFromCollections: true
           Only the first item can be an <enclosure>: RSS 2.0 allows one. #}
 {%- set media = post | feedMedia(site.url) %}
 {%- for m in media %}
-      <media:content url="{{ m.url }}" type="{{ m.type }}"{% if m.width %} width="{{ m.width }}"{% endif %}{% if m.height %} height="{{ m.height }}"{% endif %}{% if m.length %} fileSize="{{ m.length }}"{% endif %} medium="image" />
+      <media:content url="{{ m.url }}" type="{{ m.type }}"{% if m.width %} width="{{ m.width }}"{% endif %}{% if m.height %} height="{{ m.height }}"{% endif %}{% if m.length %} fileSize="{{ m.length }}"{% endif %} medium="{{ m.medium }}" />
 {%- endfor %}
 {%- if media.length %}
       <media:thumbnail url="{{ media[0].url }}"{% if media[0].width %} width="{{ media[0].width }}"{% endif %}{% if media[0].height %} height="{{ media[0].height }}"{% endif %} />

@@ -4,6 +4,21 @@ import path from "node:path";
 import sharp from "sharp";
 
 const MAX_WIDTH = 1000;
+/**
+ * Hard ceiling on a single downloaded file.
+ *
+ * GitHub refuses a push containing a file over 100 MB and warns above 50 MB.
+ * Video arrives verbatim, with no transcoding, so without this a large clip
+ * would be downloaded, committed, and then fail to push. Each run starts from
+ * a fresh checkout, so that failure would repeat every five minutes forever
+ * rather than being a single bad run.
+ */
+const MAX_MEDIA_BYTES = intFromEnv("MAX_MEDIA_BYTES", 50 * 1024 * 1024);
+
+function intFromEnv(name, fallback) {
+  const n = parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
 // JPEG rather than WebP: some feed readers will not render WebP, and an image
 // that does not appear in a subscriber's reader is worse than a larger file.
 const JPEG_QUALITY = 85;
@@ -16,14 +31,51 @@ async function fetchBuffer(url, { retries = 2 } = {}) {
     try {
       const res = await fetch(url, { headers: { "user-agent": USER_AGENT } });
       if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-      const arr = await res.arrayBuffer();
-      return Buffer.from(arr);
+      return await readCapped(res, url);
     } catch (err) {
       lastErr = err;
+      // Too large is a fact about the file, not a transient failure.
+      if (err.tooLarge) break;
       if (attempt < retries) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
     }
   }
   throw lastErr;
+}
+
+/**
+ * Read a response body, refusing anything past the size ceiling.
+ *
+ * The declared length is checked first so an oversized file costs nothing to
+ * reject, and the running total is checked too, because Content-Length can be
+ * absent or wrong and the point is to bound what reaches memory and disk.
+ */
+async function readCapped(res, url) {
+  const tooLarge = (bytes) =>
+    Object.assign(
+      new Error(`${url} is ${bytes} bytes, over the ${MAX_MEDIA_BYTES} byte limit`),
+      { tooLarge: true },
+    );
+
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_MEDIA_BYTES) throw tooLarge(declared);
+
+  if (!res.body) {
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_MEDIA_BYTES) throw tooLarge(buf.length);
+    return buf;
+  }
+
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of res.body) {
+    total += chunk.length;
+    if (total > MAX_MEDIA_BYTES) {
+      await res.body.cancel?.().catch(() => {});
+      throw tooLarge(total);
+    }
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
 }
 
 /**
@@ -152,26 +204,31 @@ export async function storePostMedia(post, mediaRoot) {
   }
 
   for (const vid of post.videos) {
+    // The poster is stored first and independently. A video too large to
+    // mirror should still leave the page, and its link preview, with a local
+    // image rather than nothing.
+    let poster = null;
+    if (vid.poster) {
+      try {
+        poster = (await storeImage({ sourceUrl: vid.poster, postId: post.id, mediaRoot })).src;
+      } catch (err) {
+        console.warn(`  poster failed (${vid.poster}): ${err.message}`);
+        poster = vid.poster;
+      }
+    }
+
     try {
       const stored = await storeFile({
         sourceUrl: vid.sourceUrl,
         postId: post.id,
         mediaRoot,
       });
-      let poster = null;
-      if (vid.poster) {
-        try {
-          poster = (
-            await storeImage({ sourceUrl: vid.poster, postId: post.id, mediaRoot })
-          ).src;
-        } catch {
-          poster = vid.poster;
-        }
-      }
       videos.push({ src: stored.src, poster });
     } catch (err) {
+      // Keeping the remote URL means the video still plays, from Tumblr,
+      // rather than the post losing it entirely.
       console.warn(`  video failed (${vid.sourceUrl}): ${err.message}`);
-      videos.push({ src: vid.sourceUrl, poster: vid.poster, unresolved: true });
+      videos.push({ src: vid.sourceUrl, poster, unresolved: true });
       unresolved++;
     }
   }

@@ -115,6 +115,7 @@ Environment variables (all optional):
 | `TUMBLR_BLOG` | `salaamji.tumblr.com` | blog identifier to mirror |
 | `MAX_PAGES` | `5` | pages of 20 posts to walk back per run, at most |
 | `MAX_DELETIONS` | `5` | most posts one run may remove before refusing and alerting |
+| `MAX_MEDIA_BYTES` | `52428800` | largest single media file to mirror (50 MB) |
 | `DELETE_DRY_RUN` | unset | when true, report removals without making them |
 | `ALERT_AFTER_FAILURES` | `72` | consecutive failures before the workflow goes red (~6h at a 5-minute interval) |
 | `ALERT_REPEAT_EVERY` | `288` | failures between repeat alerts once past the threshold (~24h) |
@@ -226,6 +227,33 @@ A related bug fixed at the same time: every page carried
 `<link rel="canonical" href="https://salaamji.tumblr.com/">`, telling any
 crawler or unfurler that the page was really the Tumblr blog's front page.
 Pages now declare themselves canonical.
+
+### Video
+
+Video hosted by Tumblr is mirrored like any other media, downloaded verbatim
+with no transcoding, and rendered with a `<video>` element carrying its poster.
+Embeds from YouTube, Vimeo and the like cannot be: there is no file to fetch,
+so the block's link is kept as a caption line instead of a player that would
+not work.
+
+Two things follow from video being much larger than a photograph.
+
+**A single file is capped at `MAX_MEDIA_BYTES`, 50 MB by default.** GitHub
+refuses a push containing a file over 100 MB and warns above 50. Since every
+run starts from a fresh checkout, an oversized file would be downloaded and
+committed on every run and fail to push on every run, which is a permanent
+red loop rather than one bad run. Past the cap the download is abandoned, by
+the declared length where there is one and by a running total where there is
+not, so nothing oversized reaches memory or disk. The post still publishes,
+with the video pointing at Tumblr's own URL and counted as unresolved.
+
+**The poster is stored before the video and independently of it**, so a video
+too large to mirror still leaves the page and its link preview with a local
+image.
+
+A post whose only media is a video takes its `og:image` from that poster.
+Without it the page would advertise the newest *other* post's photograph as
+its own, which is worse than advertising none.
 
 ### Images are JPEG, not WebP
 

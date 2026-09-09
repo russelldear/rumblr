@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   normalisePostId,
+  previewImage,
   selectFeedPosts,
   feedDescription,
   feedMedia,
@@ -117,6 +118,7 @@ test("structured media is absolute, typed and sized", () => {
     {
       url: "https://guid.nz/rumblr/media/1/a.webp",
       type: "image/webp",
+      medium: "image",
       width: 1000,
       height: 750,
       length: 47922,
@@ -124,6 +126,8 @@ test("structured media is absolute, typed and sized", () => {
     {
       url: "https://guid.nz/rumblr/media/1/b.mp4",
       type: "video/mp4",
+      // A video declared as an image is what readers were previously told.
+      medium: "video",
       width: null,
       height: null,
       length: null,
@@ -144,4 +148,33 @@ test("an unmeasurable file is still listed, just without a length", () => {
 
 test("a post with no media yields none, so no empty enclosure is emitted", () => {
   assert.deepEqual(feedMedia({ caption: "text only" }, "https://x", "/m", () => 1), []);
+});
+
+test("a post's preview image is its first picture", () => {
+  const p = previewImage({ images: [{ src: "/media/1/a.jpg", width: 800, height: 600 }] });
+  assert.deepEqual(p, { src: "/media/1/a.jpg", width: 800, height: 600 });
+});
+
+test("a video-only post falls back to the video's poster", () => {
+  // Without this the page advertises some other post's photograph as its
+  // own, which is worse than advertising none.
+  const p = previewImage({
+    images: [],
+    videos: [{ src: "/media/1/clip.mp4", poster: "/media/1/poster.jpg" }],
+  });
+  assert.deepEqual(p, { src: "/media/1/poster.jpg", width: null, height: null });
+});
+
+test("a post with nothing to show has no preview image", () => {
+  assert.equal(previewImage({ images: [], videos: [] }), null);
+  assert.equal(previewImage({ images: [], videos: [{ src: "/media/1/clip.mp4" }] }), null);
+  assert.equal(previewImage(null), null);
+});
+
+test("an image is preferred over a video poster", () => {
+  const p = previewImage({
+    images: [{ src: "/media/1/a.jpg" }],
+    videos: [{ src: "/media/1/c.mp4", poster: "/media/1/poster.jpg" }],
+  });
+  assert.equal(p.src, "/media/1/a.jpg");
 });
