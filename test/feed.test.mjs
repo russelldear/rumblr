@@ -103,6 +103,24 @@ test("media types are derived from the file extension", () => {
   assert.equal(mimeFor("/media/1/a.weird"), "application/octet-stream");
 });
 
+test("video containers Tumblr actually serves are typed as video", () => {
+  // The first real video arrived as .mov, which was missing from the map and
+  // so went out as an octet-stream, and therefore as medium="image".
+  for (const ext of ["mp4", "m4v", "mov", "webm", "mkv", "avi", "ogv"]) {
+    const type = mimeFor(`/media/1/clip.${ext}`);
+    assert.ok(type.startsWith("video/"), `${ext} typed as ${type}`);
+    const [m] = feedMedia({ videos: [{ src: `/media/1/clip.${ext}` }] }, "https://g/r", null, null);
+    assert.equal(m.medium, "video", `${ext} announced as ${m.medium}`);
+  }
+});
+
+test("audio is typed as audio", () => {
+  for (const ext of ["mp3", "m4a", "aac", "wav", "flac", "oga"]) {
+    const [m] = feedMedia({ videos: [{ src: `/media/1/a.${ext}` }] }, "https://g/r", null, null);
+    assert.equal(m.medium, "audio", `${ext} announced as ${m.medium}`);
+  }
+});
+
 test("structured media is absolute, typed and sized", () => {
   const media = feedMedia(
     {

@@ -49,6 +49,12 @@ const feed = await readFile(path.join(SITE, "feed.xml"), "utf8");
 if (feed.includes(".webp")) problems.push("feed.xml: references WebP");
 if (/(src|url)="http:\/\//.test(feed)) problems.push("feed.xml: contains an http:// URL");
 if (!feed.includes("<item>")) problems.push("feed.xml: has no items");
+// An unrecognised extension leaves media typed as octet-stream, which also
+// makes it medium="image". Readers are then told a video is a picture of
+// unknown type. Better to fail here than to ship it.
+if (feed.includes("application/octet-stream")) {
+  problems.push("feed.xml: media typed application/octet-stream (extension missing from MIME_BY_EXT)");
+}
 
 if (problems.length) {
   console.error("Built site failed verification:");
