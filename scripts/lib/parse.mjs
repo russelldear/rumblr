@@ -40,7 +40,8 @@ export function largestMedia(media) {
 }
 
 /**
- * Walk NPF content blocks into { images, videos, captionBlocks, headings }.
+ * Walk NPF content blocks into
+ * { images, videos, links, captionBlocks, headings, trackTitles }.
  * Unknown block types are ignored rather than throwing, so a new block type
  * shipped by Tumblr degrades to a missing caption line, not a failed sync.
  */
@@ -50,6 +51,7 @@ export function parseContent(content) {
   const links = [];
   const captionBlocks = [];
   const headings = [];
+  const trackTitles = [];
 
   for (const block of Array.isArray(content) ? content : []) {
     if (!block || typeof block !== "object") continue;
@@ -84,9 +86,10 @@ export function parseContent(content) {
 
       case "audio": {
         // Third-party audio (Spotify, SoundCloud) carries no downloadable
-        // media, so there is nothing to mirror. The track details are what
-        // make the post readable; the bare URL alone was becoming both the
-        // caption and, through it, the post's title.
+        // media, so there is nothing to mirror. What makes the post readable
+        // is the track details, carried as the link's text: Tumblr's own
+        // display_text is a generic "Listen on Spotify", and the bare URL is
+        // worse still.
         //
         // The block's album art is deliberately ignored. Tumblr rehosts it and
         // it could be mirrored, but a cover thumbnail beside the photograph
@@ -95,15 +98,22 @@ export function parseContent(content) {
         if (best) videos.push({ sourceUrl: best.url, poster: null });
 
         const described = [block.artist, block.title].filter(Boolean).join(" — ");
-        if (described) captionBlocks.push(described);
 
         const href = block.url || block.attribution?.url;
         if (typeof href === "string" && href) {
           links.push({
             url: href,
-            label: block.attribution?.display_text || described || href,
+            label: described || block.attribution?.display_text || href,
           });
         }
+
+        // The track details are the link's text, so repeating them as a
+        // caption line would print the same string twice. They are still the
+        // best title a track-only post has, hence trackTitles rather than
+        // dropping them: without a caption to derive from, the title would
+        // fall back to the post's date.
+        if (described && !href) captionBlocks.push(described);
+        if (described) trackTitles.push(described);
         break;
       }
 
@@ -133,7 +143,7 @@ export function parseContent(content) {
     }
   }
 
-  return { images, videos, links, captionBlocks, headings };
+  return { images, videos, links, captionBlocks, headings, trackTitles };
 }
 
 /**
@@ -152,7 +162,7 @@ export function apiPostToPost(post) {
     if (Array.isArray(last?.content)) content = last.content;
   }
 
-  const { images, videos, links, captionBlocks, headings } = parseContent(content);
+  const { images, videos, links, captionBlocks, headings, trackTitles } = parseContent(content);
   const caption = captionBlocks.join("\n\n").trim();
 
   return {
@@ -160,7 +170,7 @@ export function apiPostToPost(post) {
     source: "tumblr-api",
     permalink: typeof post?.post_url === "string" ? post.post_url : null,
     publishedAt: publishedAt(post),
-    title: headings[0] || deriveTitle(caption),
+    title: headings[0] || deriveTitle(caption) || trackTitles[0] || "",
     caption,
     images,
     videos,

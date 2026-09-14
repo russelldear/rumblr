@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseContent } from "../scripts/lib/parse.mjs";
+import { parseContent, apiPostToPost } from "../scripts/lib/parse.mjs";
 
 const spotify = {
   type: "audio", provider: "spotify",
@@ -11,11 +11,38 @@ const spotify = {
   attribution: { type: "app", app_name: "Spotify", url: "https://open.spotify.com/track/5lQKRR3MdJLtAwNBiT8Cq0", display_text: "Listen on Spotify" },
 };
 
-test("third-party audio keeps its track details and link", () => {
+test("the track details are the link's text, not a separate caption line", () => {
+  // Tumblr's own display_text is a generic "Listen on Spotify". Naming the
+  // track in the link means the details appear once, not as a caption line
+  // followed by a link repeating nothing useful.
   const r = parseContent([spotify]);
-  assert.deepEqual(r.captionBlocks, ["Eagles — Lyin' Eyes - 2013 Remaster"]);
-  assert.deepEqual(r.links, [{ url: spotify.url, label: "Listen on Spotify" }]);
+  assert.deepEqual(r.links, [
+    { url: spotify.url, label: "Eagles — Lyin' Eyes - 2013 Remaster" },
+  ]);
+  assert.deepEqual(r.captionBlocks, [], "the same string must not be printed twice");
   assert.deepEqual(r.videos, [], "Spotify serves no downloadable audio");
+});
+
+test("a track-only post is still titled with the track", () => {
+  // captionBlocks is empty for these posts, so without trackTitles the title
+  // would be blank and both the feed item and the page would fall back to
+  // the post's date.
+  const post = apiPostToPost({
+    id_string: "1", post_url: "https://salaamji.tumblr.com/post/1/x",
+    timestamp: 1_700_000_000, content: [spotify],
+  });
+  assert.equal(post.title, "Eagles — Lyin' Eyes - 2013 Remaster");
+  assert.equal(post.caption, "");
+});
+
+test("the poster's own words outrank the track as a title", () => {
+  const post = apiPostToPost({
+    id_string: "1", post_url: "https://salaamji.tumblr.com/post/1/x",
+    timestamp: 1_700_000_000,
+    content: [{ type: "text", text: "On repeat all week" }, spotify],
+  });
+  assert.equal(post.title, "On repeat all week");
+  assert.equal(post.caption, "On repeat all week");
 });
 
 test("album art is not mirrored", () => {
@@ -25,11 +52,12 @@ test("album art is not mirrored", () => {
   assert.deepEqual(r.images, []);
 });
 
-test("the bare URL no longer becomes the caption", () => {
-  // It previously did, and through deriveTitle became the post's title too,
+test("the bare URL is never the visible text", () => {
+  // It was once the caption, and through deriveTitle the post's title too,
   // so the feed item was headlined with a Spotify URL.
   const r = parseContent([spotify]);
   assert.ok(!r.captionBlocks.some((c) => c.startsWith("http")));
+  assert.ok(!r.links.some((l) => l.label.startsWith("http")));
 });
 
 test("audio with no poster and no attribution still yields a usable link", () => {
