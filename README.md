@@ -228,6 +228,28 @@ A related bug fixed at the same time: every page carried
 crawler or unfurler that the page was really the Tumblr blog's front page.
 Pages now declare themselves canonical.
 
+### Audio and external links
+
+Third-party audio, a Spotify or SoundCloud track, carries no downloadable
+media: there is nothing to mirror and nothing that would play. What it does
+carry is `title`, `artist`, `album`, a canonical `url`, and **album art that
+Tumblr rehosts on its own CDN**, which can be mirrored like any other image.
+
+So an audio block contributes its album art to the post's images, a caption
+line reading `Artist — Track`, and an entry in the post's `links`. Native
+Tumblr audio, which does have a media object, is mirrored as well.
+
+`links` is a record field rather than text in the caption. A URL pasted into
+the caption arrives as unclickable text, and with nothing else in the post it
+also became the caption, and through that the post's **title**: the first
+Spotify post would have gone out to subscribers headlined with a raw
+`open.spotify.com` URL.
+
+Link blocks use the same field. They previously kept only the title and
+dropped the URL entirely, which happened on every well-formed block, since
+`url` is the only field the format requires and Tumblr fills the title in from
+OpenGraph.
+
 ### Video
 
 Video hosted by Tumblr is mirrored like any other media, downloaded verbatim

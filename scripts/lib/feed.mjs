@@ -179,6 +179,15 @@ export function feedDescription(post, baseUrl) {
     if (t) parts.push(`<p>${escapeHtml(t)}</p>`);
   }
 
+  // External links are kept structured rather than pasted into the caption,
+  // where they would arrive as unclickable text.
+  for (const link of post.links || []) {
+    if (!link?.url) continue;
+    parts.push(
+      `<p><a href="${escapeHtml(link.url)}">${escapeHtml(link.label || link.url)}</a></p>`,
+    );
+  }
+
   return parts.join("\n");
 }
 
