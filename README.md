@@ -235,9 +235,18 @@ media: there is nothing to mirror and nothing that would play. What it does
 carry is `title`, `artist`, `album`, a canonical `url`, and **album art that
 Tumblr rehosts on its own CDN**, which can be mirrored like any other image.
 
-So an audio block contributes a caption line reading `Artist — Track` and an
-entry in the post's `links`. Native Tumblr audio, which does have a media
-object, is mirrored as well.
+So an audio block contributes one entry in the post's `links`, labelled
+`Artist — Track`. Tumblr's own `display_text` is a generic "Listen on
+Spotify", which names neither the song nor the artist, and the bare URL is
+worse still. The track details are not repeated as a caption line: they are
+already the link's text, and printing them twice is just clutter.
+
+They are still the best title a track-only post has, so `parseContent` hands
+them back separately as `trackTitles`, used as a last resort after any heading
+and after the caption. A post where the poster wrote something of their own
+keeps their words as the title, exactly as before.
+
+Native Tumblr audio, which does have a media object, is mirrored as well.
 
 The album art is deliberately ignored, even though Tumblr rehosts it and it
 could be fetched: a cover thumbnail beside the photograph the post is actually
@@ -249,8 +258,7 @@ an unrelated photograph.
 `links` is a record field rather than text in the caption. A URL pasted into
 the caption arrives as unclickable text, and with nothing else in the post it
 also became the caption, and through that the post's **title**: the first
-Spotify post would have gone out to subscribers headlined with a raw
-`open.spotify.com` URL.
+Spotify post did go out headlined with a raw `open.spotify.com` URL.
 
 Link blocks use the same field. They previously kept only the title and
 dropped the URL entirely, which happened on every well-formed block, since
