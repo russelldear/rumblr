@@ -11,13 +11,18 @@ const spotify = {
   attribution: { type: "app", app_name: "Spotify", url: "https://open.spotify.com/track/5lQKRR3MdJLtAwNBiT8Cq0", display_text: "Listen on Spotify" },
 };
 
-test("third-party audio keeps its album art, track details and link", () => {
+test("third-party audio keeps its track details and link", () => {
   const r = parseContent([spotify]);
-  assert.equal(r.images.length, 1, "album art is mirrored");
-  assert.equal(r.images[0].sourceUrl, "https://64.media.tumblr.com/a5a/668a.jpg");
   assert.deepEqual(r.captionBlocks, ["Eagles — Lyin' Eyes - 2013 Remaster"]);
   assert.deepEqual(r.links, [{ url: spotify.url, label: "Listen on Spotify" }]);
   assert.deepEqual(r.videos, [], "Spotify serves no downloadable audio");
+});
+
+test("album art is not mirrored", () => {
+  // Tumblr rehosts it and it could be fetched, but a cover thumbnail beside
+  // the photograph the post is actually about is noise.
+  const r = parseContent([spotify]);
+  assert.deepEqual(r.images, []);
 });
 
 test("the bare URL no longer becomes the caption", () => {
@@ -45,7 +50,7 @@ test("a link block keeps its URL instead of discarding it", () => {
   assert.deepEqual(r.captionBlocks, []);
 });
 
-test("native Tumblr audio is still mirrored", () => {
+test("native Tumblr audio is still mirrored, without its cover", () => {
   const r = parseContent([{
     type: "audio", provider: "tumblr", title: "T", artist: "A",
     media: { type: "audio/mp3", url: "https://64.media.tumblr.com/x.mp3" },
@@ -53,5 +58,6 @@ test("native Tumblr audio is still mirrored", () => {
   }]);
   assert.equal(r.videos.length, 1);
   assert.equal(r.videos[0].sourceUrl, "https://64.media.tumblr.com/x.mp3");
-  assert.equal(r.images.length, 1, "album art mirrored alongside");
+  assert.equal(r.videos[0].poster, null);
+  assert.deepEqual(r.images, []);
 });

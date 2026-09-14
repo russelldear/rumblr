@@ -235,9 +235,16 @@ media: there is nothing to mirror and nothing that would play. What it does
 carry is `title`, `artist`, `album`, a canonical `url`, and **album art that
 Tumblr rehosts on its own CDN**, which can be mirrored like any other image.
 
-So an audio block contributes its album art to the post's images, a caption
-line reading `Artist — Track`, and an entry in the post's `links`. Native
-Tumblr audio, which does have a media object, is mirrored as well.
+So an audio block contributes a caption line reading `Artist — Track` and an
+entry in the post's `links`. Native Tumblr audio, which does have a media
+object, is mirrored as well.
+
+The album art is deliberately ignored, even though Tumblr rehosts it and it
+could be fetched: a cover thumbnail beside the photograph the post is actually
+about is noise. One consequence worth knowing, should a post ever consist of
+nothing but a track: with no image of its own, its page falls back to the
+newest other post's picture for `og:image`, so a link to it would preview with
+an unrelated photograph.
 
 `links` is a record field rather than text in the caption. A URL pasted into
 the caption arrives as unclickable text, and with nothing else in the post it

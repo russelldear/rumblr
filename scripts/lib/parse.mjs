@@ -84,22 +84,15 @@ export function parseContent(content) {
 
       case "audio": {
         // Third-party audio (Spotify, SoundCloud) carries no downloadable
-        // media, but Tumblr rehosts the album art on its own CDN, so that at
-        // least can be mirrored. The track details are the only thing that
-        // makes the post readable; the bare URL alone was becoming both the
+        // media, so there is nothing to mirror. The track details are what
+        // make the post readable; the bare URL alone was becoming both the
         // caption and, through it, the post's title.
-        const art = largestMedia(block.poster);
-        if (art) {
-          images.push({
-            sourceUrl: art.url,
-            origWidth: art.width,
-            origHeight: art.height,
-            alt: [block.artist, block.album].filter(Boolean).join(" — ") || "Album art",
-          });
-        }
-
+        //
+        // The block's album art is deliberately ignored. Tumblr rehosts it and
+        // it could be mirrored, but a cover thumbnail beside the photograph
+        // the post is actually about is noise.
         const best = largestMedia(block.media);
-        if (best) videos.push({ sourceUrl: best.url, poster: art ? art.url : null });
+        if (best) videos.push({ sourceUrl: best.url, poster: null });
 
         const described = [block.artist, block.title].filter(Boolean).join(" — ");
         if (described) captionBlocks.push(described);
