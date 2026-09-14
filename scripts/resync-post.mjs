@@ -69,6 +69,7 @@ async function main() {
     title: post.title,
     caption: post.caption,
     tags: post.tags,
+    links: post.links,
     images: stored.images,
     videos: stored.videos,
   };
@@ -106,6 +107,7 @@ export function describeChanges(before, after) {
     if ((before[field] ?? null) !== (after[field] ?? null)) out.push(field);
   }
   if (JSON.stringify(before.tags ?? []) !== JSON.stringify(after.tags ?? [])) out.push("tags");
+  if (JSON.stringify(before.links ?? []) !== JSON.stringify(after.links ?? [])) out.push("links");
   if (srcs(before.images) !== srcs(after.images)) out.push("images");
   if (srcs(before.videos) !== srcs(after.videos)) out.push("videos");
   return out;

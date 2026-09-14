@@ -138,6 +138,7 @@ async function main() {
             title: post.title,
             caption: post.caption,
             tags: post.tags,
+            links: post.links,
             images: stored.images,
             videos: stored.videos,
           },

@@ -196,3 +196,30 @@ test("an image is preferred over a video poster", () => {
   });
   assert.equal(p.src, "/media/1/a.jpg");
 });
+
+test("external links are rendered as anchors, not pasted into the caption", () => {
+  // A bare URL in the caption arrives as unclickable text, and worse, became
+  // the post's title when there was no other text in the post.
+  const html = feedDescription(
+    {
+      images: [],
+      caption: "Eagles — Lyin' Eyes",
+      links: [{ url: "https://open.spotify.com/track/abc", label: "Listen on Spotify" }],
+    },
+    "https://guid.nz/rumblr",
+  );
+  assert.ok(html.includes('<a href="https://open.spotify.com/track/abc">Listen on Spotify</a>'));
+});
+
+test("a link with no label falls back to its URL, and both are escaped", () => {
+  const html = feedDescription(
+    { links: [{ url: "https://x/?a=1&b=2" }] },
+    "https://guid.nz/rumblr",
+  );
+  assert.ok(html.includes('href="https://x/?a=1&amp;b=2"'));
+  assert.ok(!html.includes("&b=2\""));
+});
+
+test("a post with no links emits none", () => {
+  assert.equal(feedDescription({ caption: "hi" }, "https://g/r").includes("<a "), false);
+});

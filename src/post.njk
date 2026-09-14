@@ -34,6 +34,11 @@ eleventyComputed:
   {% if post.caption %}
     <div class="caption">{{ post.caption }}</div>
   {% endif %}
+  {% if post.links.length %}
+    <p class="links">
+      {% for link in post.links %}<a href="{{ link.url }}" rel="noopener">{{ link.label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+    </p>
+  {% endif %}
   <time datetime="{{ post.publishedAt | isoDate }}">{{ post.publishedAt | displayDate }}</time>
   <p><a href="{{ post.permalink }}">View original Tumblr post</a></p>
 </article>

@@ -21,6 +21,11 @@
     {% if post.caption %}
       <div class="caption">{{ post.caption }}</div>
     {% endif %}
+    {% if post.links.length %}
+      <p class="links">
+        {% for link in post.links %}<a href="{{ link.url }}" rel="noopener">{{ link.label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+      </p>
+    {% endif %}
     <time datetime="{{ post.publishedAt | isoDate }}">
       <a href="{{ ('/post/' + post.id + '/') | url }}">{{ post.publishedAt | displayDate }}</a>
     </time>

@@ -47,6 +47,7 @@ export function largestMedia(media) {
 export function parseContent(content) {
   const images = [];
   const videos = [];
+  const links = [];
   const captionBlocks = [];
   const headings = [];
 
@@ -82,19 +83,47 @@ export function parseContent(content) {
       }
 
       case "audio": {
+        // Third-party audio (Spotify, SoundCloud) carries no downloadable
+        // media, but Tumblr rehosts the album art on its own CDN, so that at
+        // least can be mirrored. The track details are the only thing that
+        // makes the post readable; the bare URL alone was becoming both the
+        // caption and, through it, the post's title.
+        const art = largestMedia(block.poster);
+        if (art) {
+          images.push({
+            sourceUrl: art.url,
+            origWidth: art.width,
+            origHeight: art.height,
+            alt: [block.artist, block.album].filter(Boolean).join(" — ") || "Album art",
+          });
+        }
+
         const best = largestMedia(block.media);
-        if (best) {
-          videos.push({ sourceUrl: best.url, poster: null });
-        } else if (typeof block.url === "string" && block.url) {
-          captionBlocks.push(block.url);
+        if (best) videos.push({ sourceUrl: best.url, poster: art ? art.url : null });
+
+        const described = [block.artist, block.title].filter(Boolean).join(" — ");
+        if (described) captionBlocks.push(described);
+
+        const href = block.url || block.attribution?.url;
+        if (typeof href === "string" && href) {
+          links.push({
+            url: href,
+            label: block.attribution?.display_text || described || href,
+          });
         }
         break;
       }
 
       case "link": {
+        // The url is the only field the spec requires, and Tumblr fills the
+        // title in from OpenGraph, so the old `label || block.url` discarded
+        // the link on every well-formed block and left bare text behind.
         const label = [block.title, block.description].filter(Boolean).join(": ");
-        const text = label || block.url;
-        if (text) captionBlocks.push(String(text));
+        if (typeof block.url === "string" && block.url) {
+          links.push({ url: block.url, label: label || block.url });
+        } else if (label) {
+          captionBlocks.push(label);
+        }
         break;
       }
 
@@ -111,7 +140,7 @@ export function parseContent(content) {
     }
   }
 
-  return { images, videos, captionBlocks, headings };
+  return { images, videos, links, captionBlocks, headings };
 }
 
 /**
@@ -130,7 +159,7 @@ export function apiPostToPost(post) {
     if (Array.isArray(last?.content)) content = last.content;
   }
 
-  const { images, videos, captionBlocks, headings } = parseContent(content);
+  const { images, videos, links, captionBlocks, headings } = parseContent(content);
   const caption = captionBlocks.join("\n\n").trim();
 
   return {
@@ -142,6 +171,7 @@ export function apiPostToPost(post) {
     caption,
     images,
     videos,
+    links,
     tags: Array.isArray(post?.tags) ? post.tags.filter((t) => typeof t === "string") : [],
   };
 }
