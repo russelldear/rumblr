@@ -1,0 +1,32 @@
+name: Inspect a post
+
+# Prints a post's raw NPF as the API returns it. Read-only: nothing is
+# written, downloaded or committed. For looking at a block shape before
+# writing a parser branch against it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      post_id:
+        description: "Post id or Tumblr URL. Leave blank for the newest post."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Inspect
+        run: npm run inspect -- "$POST_ID"
+        env:
+          POST_ID: ${{ inputs.post_id }}
+          TUMBLR_API_KEY: ${{ secrets.TUMBLR_API_KEY }}
