@@ -8,6 +8,8 @@
  * Spec: https://github.com/tumblr/docs/blob/master/npf-spec.md
  */
 
+import { escapeHtml, safeHref } from "./html.mjs";
+
 const TITLE_SUBTYPES = new Set(["heading1", "heading2"]);
 const MAX_DERIVED_TITLE = 80;
 
@@ -40,6 +42,53 @@ export function largestMedia(media) {
 }
 
 /**
+ * Render a text block's inline formatting as HTML.
+ *
+ * Only `link` ranges are honoured. Bold, italic, colour and the rest are
+ * dropped, exactly as they were before this existed; the text still renders,
+ * just unstyled.
+ *
+ * The offsets are code points, not UTF-16 code units. The NPF spec is explicit
+ * about it: "Unicode code points are always treated as one character in this
+ * indexing", with an emoji given as an example of a single character. Slicing
+ * the JS string directly would therefore drift by one position per astral
+ * character appearing before a link, so the text is split into code points
+ * first. Ranges are inclusive at the start and exclusive at the end.
+ *
+ * Anything malformed is skipped rather than thrown: a range with a bad index,
+ * an unusable URL, or one overlapping a range already emitted. The caller gets
+ * escaped text with fewer links, never a failed sync.
+ */
+export function inlineHtml(text, formatting) {
+  const chars = Array.from(String(text ?? ""));
+
+  const ranges = (Array.isArray(formatting) ? formatting : [])
+    .filter((f) => f && f.type === "link")
+    .map((f) => ({ start: f.start, end: f.end, href: safeHref(f.url) }))
+    .filter(
+      (r) =>
+        r.href &&
+        Number.isInteger(r.start) &&
+        Number.isInteger(r.end) &&
+        r.start >= 0 &&
+        r.start < r.end &&
+        r.end <= chars.length,
+    )
+    .sort((a, b) => a.start - b.start);
+
+  let out = "";
+  let at = 0;
+  for (const r of ranges) {
+    if (r.start < at) continue;
+    out += escapeHtml(chars.slice(at, r.start).join(""));
+    const label = escapeHtml(chars.slice(r.start, r.end).join(""));
+    out += `<a href="${escapeHtml(r.href)}">${label}</a>`;
+    at = r.end;
+  }
+  return out + escapeHtml(chars.slice(at).join(""));
+}
+
+/**
  * Walk NPF content blocks into
  * { images, videos, links, captionBlocks, headings, trackTitles }.
  * Unknown block types are ignored rather than throwing, so a new block type
@@ -50,8 +99,17 @@ export function parseContent(content) {
   const videos = [];
   const links = [];
   const captionBlocks = [];
+  const captionHtmlBlocks = [];
   const headings = [];
   const trackTitles = [];
+
+  // The two caption arrays stay index-aligned: every plain line has an HTML
+  // counterpart, which is just the escaped line unless a text block carried
+  // inline formatting.
+  const pushCaption = (plain, html) => {
+    captionBlocks.push(plain);
+    captionHtmlBlocks.push(html ?? escapeHtml(plain));
+  };
 
   for (const block of Array.isArray(content) ? content : []) {
     if (!block || typeof block !== "object") continue;
@@ -79,7 +137,7 @@ export function parseContent(content) {
         if (best) {
           videos.push({ sourceUrl: best.url, poster: poster ? poster.url : null });
         } else if (typeof block.url === "string" && block.url) {
-          captionBlocks.push(block.url);
+          pushCaption(block.url);
         }
         break;
       }
@@ -112,7 +170,7 @@ export function parseContent(content) {
         // best title a track-only post has, hence trackTitles rather than
         // dropping them: without a caption to derive from, the title would
         // fall back to the post's date.
-        if (described && !href) captionBlocks.push(described);
+        if (described && !href) pushCaption(described);
         if (described) trackTitles.push(described);
         break;
       }
@@ -125,16 +183,20 @@ export function parseContent(content) {
         if (typeof block.url === "string" && block.url) {
           links.push({ url: block.url, label: label || block.url });
         } else if (label) {
-          captionBlocks.push(label);
+          pushCaption(label);
         }
         break;
       }
 
       case "text": {
-        const text = typeof block.text === "string" ? block.text.trim() : "";
+        // Formatting offsets index the raw text, so the trim happens after the
+        // ranges are applied, not before: trimming first would shift every
+        // index by the leading whitespace.
+        const raw = typeof block.text === "string" ? block.text : "";
+        const text = raw.trim();
         if (!text) break;
         if (TITLE_SUBTYPES.has(block.subtype)) headings.push(text);
-        captionBlocks.push(text);
+        pushCaption(text, inlineHtml(raw, block.formatting).trim());
         break;
       }
 
@@ -143,7 +205,7 @@ export function parseContent(content) {
     }
   }
 
-  return { images, videos, links, captionBlocks, headings, trackTitles };
+  return { images, videos, links, captionBlocks, captionHtmlBlocks, headings, trackTitles };
 }
 
 /**
@@ -162,8 +224,10 @@ export function apiPostToPost(post) {
     if (Array.isArray(last?.content)) content = last.content;
   }
 
-  const { images, videos, links, captionBlocks, headings, trackTitles } = parseContent(content);
+  const { images, videos, links, captionBlocks, captionHtmlBlocks, headings, trackTitles } =
+    parseContent(content);
   const caption = captionBlocks.join("\n\n").trim();
+  const captionHtml = captionHtmlBlocks.join("\n\n").trim();
 
   return {
     id,
@@ -172,6 +236,9 @@ export function apiPostToPost(post) {
     publishedAt: publishedAt(post),
     title: headings[0] || deriveTitle(caption) || trackTitles[0] || "",
     caption,
+    // Carried only when it says something the plain caption cannot, so a post
+    // with no inline formatting keeps a record free of a duplicate caption.
+    ...(captionHtml === escapeHtml(caption) ? {} : { captionHtml }),
     images,
     videos,
     links,

@@ -223,3 +223,25 @@ test("a link with no label falls back to its URL, and both are escaped", () => {
 test("a post with no links emits none", () => {
   assert.equal(feedDescription({ caption: "hi" }, "https://g/r").includes("<a "), false);
 });
+
+test("the feed body renders a caption's inline link, without double-escaping", () => {
+  const html = feedDescription(
+    {
+      caption: "Peek-a-Boo.",
+      captionHtml: '<a href="https://x.test/?a=1&amp;b=2">Peek-a-Boo</a>.',
+      images: [],
+      videos: [],
+      links: [],
+    },
+    "https://guid.nz/rumblr",
+  );
+  assert.equal(html, '<p><a href="https://x.test/?a=1&amp;b=2">Peek-a-Boo</a>.</p>');
+});
+
+test("a caption with no inline formatting is still escaped in the feed", () => {
+  const html = feedDescription(
+    { caption: 'a <b> & "c"', images: [], videos: [], links: [] },
+    "https://guid.nz/rumblr",
+  );
+  assert.equal(html, "<p>a &lt;b&gt; &amp; &quot;c&quot;</p>");
+});

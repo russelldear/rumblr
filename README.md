@@ -228,6 +228,36 @@ A related bug fixed at the same time: every page carried
 crawler or unfurler that the page was really the Tumblr blog's front page.
 Pages now declare themselves canonical.
 
+### Links inside a caption
+
+A text block can carry inline formatting, and a link is an entry in its
+`formatting` array giving a start, an end and a URL, rather than markup in the
+text. The parser used to read `block.text` and nothing else, so the words
+appeared on the site but the link did not.
+
+Two details make this fiddlier than a `String.slice`:
+
+- **The offsets are code points, not UTF-16 code units.** The NPF spec is
+  explicit: "Unicode code points are always treated as one character in this
+  indexing", with an emoji as its example. Slicing the JS string directly
+  drifts by one position for every astral character ahead of the link, so the
+  text is split with `Array.from` first.
+- **The trim has to come last.** The offsets index the raw text, so trimming
+  before applying them shifts every index by the leading whitespace.
+
+Only `link` ranges are honoured; bold, italic and colour are still dropped, so
+that text renders unstyled rather than not at all. A range is skipped, rather
+than throwing, when its indices are malformed, when it overlaps one already
+emitted, or when its URL is not http, https or mailto: those URLs end up in an
+`href`, and a `javascript:` scheme there is script execution.
+
+The result is stored as `captionHtml`, beside the plain `caption` rather than
+replacing it. `caption` is still what the post's title is derived from and what
+fills `og:description`, both of which go somewhere markup cannot follow. The
+field is written only when it would say something the plain caption cannot, so
+a post without inline formatting keeps a record with no duplicate of its own
+caption.
+
 ### Audio and external links
 
 Third-party audio, a Spotify or SoundCloud track, carries no downloadable

@@ -137,6 +137,7 @@ async function main() {
             scrapedAt: new Date().toISOString(),
             title: post.title,
             caption: post.caption,
+            ...(post.captionHtml ? { captionHtml: post.captionHtml } : {}),
             tags: post.tags,
             links: post.links,
             images: stored.images,

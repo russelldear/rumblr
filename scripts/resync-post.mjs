@@ -68,6 +68,7 @@ async function main() {
     resyncedAt: new Date().toISOString(),
     title: post.title,
     caption: post.caption,
+    ...(post.captionHtml ? { captionHtml: post.captionHtml } : {}),
     tags: post.tags,
     links: post.links,
     images: stored.images,
@@ -103,7 +104,7 @@ async function main() {
 export function describeChanges(before, after) {
   if (!before) return ["created"];
   const out = [];
-  for (const field of ["title", "caption", "permalink", "publishedAt"]) {
+  for (const field of ["title", "caption", "captionHtml", "permalink", "publishedAt"]) {
     if ((before[field] ?? null) !== (after[field] ?? null)) out.push(field);
   }
   if (JSON.stringify(before.tags ?? []) !== JSON.stringify(after.tags ?? [])) out.push("tags");

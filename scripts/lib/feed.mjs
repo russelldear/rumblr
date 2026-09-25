@@ -7,6 +7,8 @@
  * a wave of duplicates.
  */
 
+import { escapeHtml } from "./html.mjs";
+
 /**
  * Oldest post to include, by id. This is "Stupid sexy Flanders.", the first
  * post Tumblr's own feed never delivered.
@@ -145,14 +147,6 @@ export function feedMedia(post, baseUrl, mediaRoot, statSize) {
   return out;
 }
 
-export function escapeHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 /**
  * Item body: the images, then the caption. Media is referenced by absolute URL
  * because a feed item is read far from the page it came from.
@@ -174,9 +168,13 @@ export function feedDescription(post, baseUrl) {
     parts.push(`<p><a href="${src}">View video</a></p>`);
   }
 
-  for (const para of String(post.caption || "").split(/\n{2,}/)) {
+  // captionHtml is already escaped and carries the text block's inline links;
+  // it is only present when a post has some, so the plain caption stays the
+  // path for everything else.
+  const rich = typeof post.captionHtml === "string" && post.captionHtml;
+  for (const para of String(rich || post.caption || "").split(/\n{2,}/)) {
     const t = para.trim();
-    if (t) parts.push(`<p>${escapeHtml(t)}</p>`);
+    if (t) parts.push(`<p>${rich ? t : escapeHtml(t)}</p>`);
   }
 
   // External links are kept structured rather than pasted into the caption,
