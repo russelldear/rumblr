@@ -31,7 +31,9 @@ eleventyComputed:
              {% if vid.poster %}poster="{{ vid.poster | url }}"{% endif %}></video>
     </div>
   {% endfor %}
-  {% if post.caption %}
+  {% if post.captionHtml %}
+    <div class="caption">{{ post.captionHtml | safe }}</div>
+  {% elif post.caption %}
     <div class="caption">{{ post.caption }}</div>
   {% endif %}
   {% if post.links.length %}

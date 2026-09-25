@@ -89,3 +89,111 @@ test("native Tumblr audio is still mirrored, without its cover", () => {
   assert.equal(r.videos[0].poster, null);
   assert.deepEqual(r.images, []);
 });
+
+// The real block from post 828670374393856000, as the API returned it. The
+// link stops one character short of the full text: the "." is not part of it.
+const linkedText = {
+  type: "text",
+  text: "Peek-a-Boo. ",
+  formatting: [
+    {
+      type: "link",
+      start: 0,
+      end: 10,
+      url: "https://en.wikipedia.org/wiki/The_Best_of_Siouxsie_and_the_Banshees",
+    },
+  ],
+};
+
+test("a text block's inline link is rendered as a link", () => {
+  const r = parseContent([linkedText]);
+  assert.deepEqual(r.captionHtmlBlocks, [
+    '<a href="https://en.wikipedia.org/wiki/The_Best_of_Siouxsie_and_the_Banshees">Peek-a-Boo</a>.',
+  ]);
+  assert.deepEqual(r.captionBlocks, ["Peek-a-Boo."], "the plain caption is unchanged");
+});
+
+test("the title and og:description stay plain text", () => {
+  // Both are derived from `caption`, and both are rendered into contexts that
+  // cannot take markup: a <title> element and a meta attribute.
+  const post = apiPostToPost({
+    id_string: "1", post_url: "https://salaamji.tumblr.com/post/1/x",
+    timestamp: 1_700_000_000, content: [linkedText],
+  });
+  assert.equal(post.title, "Peek-a-Boo.");
+  assert.equal(post.caption, "Peek-a-Boo.");
+  assert.match(post.captionHtml, /^<a href=/);
+});
+
+test("captionHtml is omitted when it would only repeat the caption", () => {
+  const post = apiPostToPost({
+    id_string: "1", post_url: "https://salaamji.tumblr.com/post/1/x",
+    timestamp: 1_700_000_000, content: [{ type: "text", text: "Just words." }],
+  });
+  assert.equal(post.captionHtml, undefined);
+});
+
+test("formatting offsets are code points, not UTF-16 units", () => {
+  // The NPF spec counts an emoji as one character. Slicing the JS string
+  // directly would put the link one position off for every astral character
+  // ahead of it.
+  const r = parseContent([{
+    type: "text", text: "🌳 see here",
+    formatting: [{ type: "link", start: 6, end: 10, url: "https://x.test/" }],
+  }]);
+  assert.deepEqual(r.captionHtmlBlocks, ['🌳 see <a href="https://x.test/">here</a>']);
+});
+
+test("a javascript: url is dropped but its text is kept", () => {
+  const r = parseContent([{
+    type: "text", text: "click me",
+    formatting: [{ type: "link", start: 0, end: 5, url: "javascript:alert(1)" }],
+  }]);
+  assert.deepEqual(r.captionHtmlBlocks, ["click me"]);
+});
+
+test("text and urls inside a link are escaped", () => {
+  const r = parseContent([{
+    type: "text", text: 'a <b> & "c"',
+    formatting: [{ type: "link", start: 2, end: 5, url: "https://x.test/?a=1&b=2" }],
+  }]);
+  assert.deepEqual(r.captionHtmlBlocks, [
+    'a <a href="https://x.test/?a=1&amp;b=2">&lt;b&gt;</a> &amp; &quot;c&quot;',
+  ]);
+});
+
+test("malformed ranges are skipped, not thrown", () => {
+  for (const bad of [
+    { type: "link", start: 5, end: 2, url: "https://x.test/" },
+    { type: "link", start: 0, end: 99, url: "https://x.test/" },
+    { type: "link", start: -1, end: 3, url: "https://x.test/" },
+    { type: "link", start: 1.5, end: 3, url: "https://x.test/" },
+    { type: "link", start: 0, end: 3 },
+    { type: "bold", start: 0, end: 3 },
+  ]) {
+    const r = parseContent([{ type: "text", text: "abcdef", formatting: [bad] }]);
+    assert.deepEqual(r.captionHtmlBlocks, ["abcdef"], JSON.stringify(bad));
+  }
+});
+
+test("overlapping link ranges keep the first and drop the rest", () => {
+  const r = parseContent([{
+    type: "text", text: "abcdef",
+    formatting: [
+      { type: "link", start: 0, end: 4, url: "https://one.test/" },
+      { type: "link", start: 2, end: 6, url: "https://two.test/" },
+    ],
+  }]);
+  assert.deepEqual(r.captionHtmlBlocks, ['<a href="https://one.test/">abcd</a>ef']);
+});
+
+test("leading whitespace does not shift the link", () => {
+  // The text is trimmed for the plain caption, but the offsets index the raw
+  // string, so the ranges have to be applied before any trimming.
+  const r = parseContent([{
+    type: "text", text: "  hello world",
+    formatting: [{ type: "link", start: 2, end: 7, url: "https://x.test/" }],
+  }]);
+  assert.deepEqual(r.captionBlocks, ["hello world"]);
+  assert.deepEqual(r.captionHtmlBlocks, ['<a href="https://x.test/">hello</a> world']);
+});
